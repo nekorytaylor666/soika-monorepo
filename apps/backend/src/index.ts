@@ -78,7 +78,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "https://soika-frontend.pages.dev/",
+    origin: "https://soika-frontend.pages.dev",
     allowedHeaders: ["content-type", ...supertokens.getAllCORSHeaders()],
     credentials: true,
   })
