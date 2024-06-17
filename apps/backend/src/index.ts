@@ -14,7 +14,7 @@ supertokens.init({
   appInfo: {
     // learn more about this on https://supertokens.com/docs/session/appinfo
     appName: "Soika",
-    apiDomain: "http://soika.gefest.agency:3000",
+    apiDomain: "http://soika.gefest.agency",
     websiteDomain: "https://soika-frontend.pages.dev/",
     apiBasePath: "/auth",
     websiteBasePath: "/auth",
