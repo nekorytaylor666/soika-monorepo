@@ -14,8 +14,8 @@ supertokens.init({
   appInfo: {
     // learn more about this on https://supertokens.com/docs/session/appinfo
     appName: "Soika",
-    apiDomain: "http://localhost:3000",
-    websiteDomain: "http://localhost:5173",
+    apiDomain: "http://soika.gefest.agency:3000",
+    websiteDomain: "https://soika-frontend.pages.dev/",
     apiBasePath: "/auth",
     websiteBasePath: "/auth",
   },
@@ -78,7 +78,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://soika-frontend.pages.dev/",
     allowedHeaders: ["content-type", ...supertokens.getAllCORSHeaders()],
     credentials: true,
   })

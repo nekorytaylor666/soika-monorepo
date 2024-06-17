@@ -25,7 +25,7 @@ export const useTrpc = () => {
       transformer: superjson,
       links: [
         httpBatchLink({
-          url: "http://localhost:3000/trpc",
+          url: "http://soika.gefest.agency:3000/trpc",
         }),
       ],
     })

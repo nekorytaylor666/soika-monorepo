@@ -25,7 +25,7 @@ const router = createRouter({ routeTree });
 const queryClient = new QueryClient();
 SuperTokens.init({
 	appInfo: {
-		apiDomain: "http://localhost:3000",
+		apiDomain: "http://soika.gefest.agency:3000",
 		apiBasePath: "/auth",
 		appName: "soika",
 	},
