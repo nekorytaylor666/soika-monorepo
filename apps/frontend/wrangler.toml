@@ -1,0 +1,7 @@
+name = "soika"
+pages_build_output_dir = "dist"
+
+
+services = [
+  { binding = "backend", service = "backend" }
+]
