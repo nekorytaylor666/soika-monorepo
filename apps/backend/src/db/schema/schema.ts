@@ -5,12 +5,14 @@ import {
   text,
   doublePrecision,
   integer,
-  jsonb,
   pgSchema,
   uuid,
   timestamp,
   vector,
 } from "drizzle-orm/pg-core";
+
+import { customType } from "drizzle-orm/pg-core";
+import jsonb from "../custom-types";
 
 export const profile = pgTable("profile", {
   // Matches id from auth.users table in Supabase
