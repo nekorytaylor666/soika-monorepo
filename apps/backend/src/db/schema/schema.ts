@@ -201,3 +201,10 @@ export const plagiarismCheckRelations = relations(
     lot: one(lots, { fields: [plagiarismCheck.lotId], references: [lots.id] }),
   })
 );
+
+export const tradeMethods = pgTable("trade_methods", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+});
+
+export type TradeMethod = typeof tradeMethods.$inferSelect;

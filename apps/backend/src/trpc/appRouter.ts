@@ -2,31 +2,18 @@ import { TRPCError, initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { db as dbConnection } from "../db/connection";
 import {
-  type Lot,
   boards,
   boardsStatuses,
   dealBoard,
   deals,
   lots,
   recommendedProducts,
-  tenders,
-  type RecommendedProduct,
+  profile,
+  tradeMethods,
 } from "../db/schema/schema";
-import {
-  and,
-  cosineDistance,
-  count,
-  desc,
-  eq,
-  gt,
-  isNotNull,
-  isNull,
-  sql,
-} from "drizzle-orm";
+import { and, cosineDistance, desc, eq, sql } from "drizzle-orm";
 import type * as trpcExpress from "@trpc/server/adapters/express";
-import { verifySession } from "supertokens-node/recipe/session/framework/express";
 import Session from "supertokens-node/recipe/session";
-import { OpenAIEmbeddings } from "@langchain/openai";
 import { embeddings } from "../lib/ai";
 import superjson from "superjson";
 
@@ -70,6 +57,15 @@ export const appRouter = router({
       const data = await ctx.db.select().from(dealBoard);
       return data;
     }),
+  user: router({
+    getUser: authenticatedProcedure.query(async ({ ctx }) => {
+      const data = await ctx.db
+        .select()
+        .from(profile)
+        .where(eq(profile.id, ctx.session.userId));
+      return data;
+    }),
+  }),
   board: router({
     getAllByUser: authenticatedProcedure
       .input(z.string().nullish())
@@ -139,6 +135,10 @@ export const appRouter = router({
     }),
   }),
   lot: router({
+    getTradeMethods: publicProcedure.query(async ({ ctx }) => {
+      const data = await ctx.db.select().from(tradeMethods);
+      return data;
+    }),
     getAllWithRecommendations: publicProcedure
       .input(
         z.object({
@@ -148,6 +148,7 @@ export const appRouter = router({
           withRecommendations: z.boolean().nullish(),
           minBudget: z.number().nullish(),
           maxBudget: z.number().nullish(),
+          tradeMethod: z.number().nullish(),
         })
       )
       .query(async ({ input, ctx }) => {
@@ -167,7 +168,10 @@ export const appRouter = router({
                 : undefined,
               gt(similarity, 0.5),
               input.minBudget ? gt(table.budget, input.minBudget) : undefined,
-              input.maxBudget ? lt(table.budget, input.maxBudget) : undefined
+              input.maxBudget ? lt(table.budget, input.maxBudget) : undefined,
+              input.tradeMethod
+                ? sql`ref_trade_methods ->> 'id' = ${input.tradeMethod}`
+                : undefined
             ),
           with: {
             recommendedProducts: {

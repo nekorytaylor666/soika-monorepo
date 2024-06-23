@@ -18,7 +18,6 @@ export const useTrpc = () => {
         },
       })
   );
-  console.log(process.env.NODE_ENV);
 
   const [trpcClient] = useState(() =>
     trpc.createClient({
@@ -26,7 +25,7 @@ export const useTrpc = () => {
       links: [
         httpBatchLink({
           // url: "https://soika.gefest.agency:3000/trpc",
-          url: "http://localhost:3000/trpc",
+          url: `${import.meta.env.VITE_API_DOMAIN}/trpc`,
         }),
       ],
     })

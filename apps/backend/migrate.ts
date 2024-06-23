@@ -4,9 +4,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
-const sql = postgres(
-  "postgresql://postgres:proxy_password@soika.gefest.agency:65432/postgres"
-);
+const sql = postgres(process.env.DATABASE_URL as string);
 const db = drizzle(sql);
 
 const main = async () => {

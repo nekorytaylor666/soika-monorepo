@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { z } from "zod";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { MoreHorizontal, Package } from "lucide-react";
+import {
+	Check,
+	ChevronsUpDown,
+	Dot,
+	MoreHorizontal,
+	Package,
+} from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc";
-import { formatNumberWithCommas } from "@/lib/utils";
+import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { H4, Large, Lead, P } from "@/components/ui/typography";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -45,9 +51,24 @@ import type {
 	Board,
 	Lot,
 	RecommendedProduct,
+	TradeMethod,
 } from "backend/src/db/schema/schema";
 import { Button } from "@/components/ui/button";
 import { DashIcon } from "@radix-ui/react-icons";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
+import React from "react";
 
 const lotSearchSchema = z.object({
 	page: z.number().catch(1),
@@ -55,6 +76,7 @@ const lotSearchSchema = z.object({
 	withRecommendations: z.boolean().catch(false),
 	minBudget: z.number().optional(),
 	maxBudget: z.number().optional(),
+	tradeMethod: z.number().optional(),
 });
 
 const formSchema = z.object({
@@ -62,6 +84,7 @@ const formSchema = z.object({
 	withRecommendations: z.boolean().catch(false),
 	minBudget: z.number().optional().catch(0),
 	maxBudget: z.number().optional().catch(Number.MAX_SAFE_INTEGER),
+	tradeMethod: z.number().optional(),
 });
 
 export const Route = createFileRoute("/dashboard/lots")({
@@ -71,8 +94,14 @@ export const Route = createFileRoute("/dashboard/lots")({
 });
 
 function LotsPage() {
-	const { page, search, withRecommendations, maxBudget, minBudget } =
-		Route.useSearch();
+	const {
+		page,
+		search,
+		withRecommendations,
+		maxBudget,
+		minBudget,
+		tradeMethod,
+	} = Route.useSearch();
 	const [limit] = useState(10);
 	const navigation = useNavigate();
 
@@ -81,6 +110,7 @@ function LotsPage() {
 		defaultValues: {
 			search: search,
 			withRecommendations: withRecommendations,
+			tradeMethod: tradeMethod,
 		},
 	});
 	console.log(form.formState.errors);
@@ -92,6 +122,7 @@ function LotsPage() {
 		withRecommendations: withRecommendations,
 		minBudget: minBudget,
 		maxBudget: maxBudget,
+		tradeMethod: tradeMethod,
 	});
 
 	const [boards] = trpc.board.getAllByUser.useSuspenseQuery();
@@ -107,6 +138,7 @@ function LotsPage() {
 				withRecommendations: values.withRecommendations,
 				minBudget: values.minBudget,
 				maxBudget: values.maxBudget,
+				tradeMethod: values.tradeMethod,
 			},
 		});
 	}
@@ -182,6 +214,7 @@ function LotSearchForm({
 	onSubmit: (data: z.infer<typeof formSchema>) => void;
 	isLoading: boolean;
 }) {
+	console.log(form.getValues("tradeMethod"));
 	return (
 		<Form {...form}>
 			<form
@@ -240,11 +273,78 @@ function LotSearchForm({
 						placeholder="Макс. бюджет"
 					/>
 				</div>
+				<TradeMethodCombobox
+					value={form.watch("tradeMethod")}
+					onChange={(value) => {
+						console.log("onChange", value);
+						form.setValue("tradeMethod", value);
+					}}
+				/>
 				<Button type="submit" className="w-full" disabled={isLoading}>
 					{isLoading ? "Поиск..." : "Поиск"}
 				</Button>
 			</form>
 		</Form>
+	);
+}
+
+export function TradeMethodCombobox({
+	value,
+	onChange,
+}: {
+	value: number;
+	onChange: (value: number) => void;
+}) {
+	const [open, setOpen] = React.useState(false);
+	console.log("props", value, onChange);
+	const { data: tradeMethods, isLoading } = trpc.lot.getTradeMethods.useQuery();
+	if (isLoading) return <Skeleton className="w-full h-9" />;
+	if (!tradeMethods) return null;
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					variant="outline"
+					role="combobox"
+					aria-expanded={open}
+					className="w-full justify-between"
+				>
+					{value
+						? tradeMethods.find((tradeMethod) => tradeMethod.id === value)?.name
+						: "Выберите способ закупки..."}
+					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-full p-0">
+				<Command>
+					<CommandInput placeholder="Поиск способа закупки..." />
+					<CommandEmpty>Способ закупки не найден.</CommandEmpty>
+					<CommandGroup>
+						<CommandList>
+							{tradeMethods.map((tradeMethod) => (
+								<CommandItem
+									key={tradeMethod.id}
+									value={tradeMethod.id.toString()}
+									keywords={[tradeMethod.name]}
+									onSelect={(currentValue) => {
+										onChange(Number(currentValue));
+										setOpen(false);
+									}}
+								>
+									<Check
+										className={cn(
+											"mr-2 h-4 w-4",
+											value === tradeMethod.id ? "opacity-100" : "opacity-0",
+										)}
+									/>
+									{tradeMethod.name}
+								</CommandItem>
+							))}
+						</CommandList>
+					</CommandGroup>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
@@ -275,11 +375,12 @@ function LotList({
 						{lot.lotDescription} {lot.lotAdditionalDescription}
 					</P>
 					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-2 text-muted-foreground">
+						<div className="flex items-center gap-2 text-muted-foreground text-sm font-mono">
+							<P className="underline mr-4">{lot.refTradeMethods?.nameRu}</P>
 							<Package className="size-4" />
 							<P>{lot.recommendedProducts.length} Товар</P>
 						</div>
-						<Menubar className="border-none">
+						<Menubar className="border-none shadow-none">
 							<MenubarMenu>
 								<MenubarTrigger className="cursor-pointer hover:bg-muted">
 									<MoreHorizontal className="size-4" />
