@@ -1,3 +1,5 @@
+import { CohereRerank } from "@langchain/cohere";
+import { CohereClient } from "cohere-ai";
 import { and, cosineDistance, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { authenticatedProcedure, publicProcedure, router } from "..";
@@ -10,6 +12,11 @@ import {
   tradeMethods,
 } from "../../db/schema/schema";
 import { embeddings } from "../../lib/ai";
+const cohereRerank = new CohereRerank({
+  apiKey: process.env.COHERE_API_KEY, // Default
+  topN: 100, // Default
+  model: "rerank-multilingual-v3.0", // Default
+});
 
 export const lotRouter = router({
   getTradeMethods: publicProcedure.query(async ({ ctx }) => {
@@ -29,6 +36,13 @@ export const lotRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
+      if (!input.search) {
+        return {
+          lots: [],
+          rerank: [],
+          hasMore: false,
+        };
+      }
       const offset = (input.page - 1) * input.limit;
       const embedding = await embeddings.embedQuery(input.search || "");
       const similarity = sql<number>`1 - (${cosineDistance(lots.embedding, embedding)})`;
@@ -43,7 +57,7 @@ export const lotRouter = router({
                     .from(recommendedProducts)
                 )
               : undefined,
-            gt(similarity, 0.5),
+            gt(similarity, 0.8),
             input.minBudget ? gt(table.budget, input.minBudget) : undefined,
             input.maxBudget ? lt(table.budget, input.maxBudget) : undefined,
             input.tradeMethod
@@ -57,14 +71,27 @@ export const lotRouter = router({
             },
           },
         },
-        limit: input.limit,
+        limit: 100,
         orderBy: desc(similarity),
         offset: offset,
       });
+      const documents = data.map((lot) => ({
+        pageContent: `${lot.lotName} ${lot.lotDescription} ${lot.lotAdditionalDescription}`,
+        metadata: lot,
+      }));
+
       const hasMore = data.length === input.limit;
 
+      const rerank = await cohereRerank.compressDocuments(
+        documents,
+        input.search || ""
+      );
+
+      console.log(rerank);
+
       return {
-        lots: data,
+        lots: rerank.map((el) => el.metadata),
+        rerank: rerank.map((el) => el.metadata),
         hasMore,
       };
     }),
