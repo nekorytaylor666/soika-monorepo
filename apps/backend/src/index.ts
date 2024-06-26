@@ -1,11 +1,12 @@
-import supertokens from "supertokens-node";
 import * as trpcExpress from "@trpc/server/adapters/express";
-import express from "express";
 import cors from "cors";
+import express from "express";
+import supertokens from "supertokens-node";
 import { middleware } from "supertokens-node/framework/express";
 import { errorHandler } from "supertokens-node/framework/express";
-import { appRouter, createContext } from "./trpc/appRouter";
 import { supertokensConfig } from "./lib/supertokens";
+import { createContext } from "./trpc";
+import { appRouter } from "./trpc/appRouter";
 
 const app = express();
 

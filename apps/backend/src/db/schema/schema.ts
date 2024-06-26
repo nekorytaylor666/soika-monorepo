@@ -1,13 +1,14 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  doublePrecision,
+  index,
+  integer,
+  pgSchema,
   pgTable,
   serial,
   text,
-  doublePrecision,
-  integer,
-  pgSchema,
-  uuid,
   timestamp,
+  uuid,
   vector,
 } from "drizzle-orm/pg-core";
 
@@ -96,63 +97,72 @@ export const tenderRelations = relations(tenders, ({ many }) => ({
   lots: many(lots),
 }));
 
-export const lots = pgTable("lots", {
-  id: integer("id").primaryKey(), // Consider if you need a separate PK
-  tenderId: integer("tender_id"),
-  purchaseNumber: text("purchase_number"),
-  purchaseName: text("purchase_name"),
-  lotNumber: text("lot_number").notNull(),
-  lotName: text("lot_name"),
-  lotDescription: text("lot_description"),
-  lotAdditionalDescription: text("lot_additional_description"),
-  quantity: doublePrecision("quantity"),
-  unitOfMeasure: text("unit_of_measure"),
-  budget: doublePrecision("budget"),
-  deliveryPlaces: text("delivery_places"),
-  lotSpecifications: text("lot_specifications"),
-  deliveryTerm: text("delivery_term"),
-  consultingServices: integer("consulting_services"),
-  customerId: integer("customer_id"),
-  customerBin: text("customer_bin"),
-  customerNameRu: text("customer_name_ru"),
-  enstruList: integer("enstru_list")
-    .array()
-    .notNull()
-    .default(sql`ARRAY[]::int[]`),
-  trdBuyNumberAnno: text("trd_buy_number_anno"),
-  refLotsStatus: jsonb("ref_lots_status").$type<{
-    id: number;
-    nameRu: string;
-    code: string;
-  }>(),
-  count: integer("count"),
-  indexDate: text("index_date"), // Consider changing to a date type
-  refTradeMethods: jsonb("ref_trade_methods").$type<{
-    nameRu: string;
-    id: number;
-    code: string;
-  }>(),
-  plnPointKatoList: text("pln_point_kato_list")
-    .array()
-    .notNull()
-    .default(sql`ARRAY[]::text[]`),
-  files: jsonb("files").$type<
-    Array<{
+export const lots = pgTable(
+  "lots",
+  {
+    id: integer("id").primaryKey(), // Consider if you need a separate PK
+    tenderId: integer("tender_id"),
+    purchaseNumber: text("purchase_number"),
+    purchaseName: text("purchase_name"),
+    lotNumber: text("lot_number").notNull(),
+    lotName: text("lot_name"),
+    lotDescription: text("lot_description"),
+    lotAdditionalDescription: text("lot_additional_description"),
+    quantity: doublePrecision("quantity"),
+    unitOfMeasure: text("unit_of_measure"),
+    budget: doublePrecision("budget"),
+    deliveryPlaces: text("delivery_places"),
+    lotSpecifications: text("lot_specifications"),
+    deliveryTerm: text("delivery_term"),
+    consultingServices: integer("consulting_services"),
+    customerId: integer("customer_id"),
+    customerBin: text("customer_bin"),
+    customerNameRu: text("customer_name_ru"),
+    enstruList: integer("enstru_list")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::int[]`),
+    trdBuyNumberAnno: text("trd_buy_number_anno"),
+    refLotsStatus: jsonb("ref_lots_status").$type<{
+      id: number;
       nameRu: string;
-      filePath: string;
-      originalName: string;
-    }>
-  >(),
-  createdAt: timestamp("created_at")
-    .default(sql`now()`)
-    .notNull(),
-  updatedAt: timestamp("updated_at")
-    .default(sql`now()`)
-    .notNull(),
-  embedding: vector("embedding", {
-    dimensions: 1536,
-  }),
-});
+      code: string;
+    }>(),
+    count: integer("count"),
+    indexDate: text("index_date"), // Consider changing to a date type
+    refTradeMethods: jsonb("ref_trade_methods").$type<{
+      nameRu: string;
+      id: number;
+      code: string;
+    }>(),
+    plnPointKatoList: text("pln_point_kato_list")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    files: jsonb("files").$type<
+      Array<{
+        nameRu: string;
+        filePath: string;
+        originalName: string;
+      }>
+    >(),
+    createdAt: timestamp("created_at")
+      .default(sql`now()`)
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`now()`)
+      .notNull(),
+    embedding: vector("embedding", {
+      dimensions: 1536,
+    }),
+  },
+  (table) => ({
+    lotNameSearchIndex: index("lot_name_search_index").using(
+      "gin",
+      sql`to_tsvector('russian', ${table.lotName})`
+    ),
+  })
+);
 export type Lot = typeof lots.$inferSelect;
 
 export const lotRelations = relations(lots, ({ one, many }) => ({
