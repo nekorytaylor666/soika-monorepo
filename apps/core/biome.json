@@ -1,0 +1,13 @@
+{
+	"linter": {
+		"rules": {
+			"suspicious": {
+				"noDebugger": "off"
+			},
+			"style": {
+				"noShoutyConstants": "warn",
+				"useNamingConvention": "error"
+			}
+		}
+	}
+}
