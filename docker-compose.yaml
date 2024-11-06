@@ -1,0 +1,86 @@
+version: "3"
+
+services:
+  db:
+    image: "timescale/timescaledb-ha:pg16"
+    environment:
+      POSTGRES_USER: soika_admin
+      POSTGRES_PASSWORD: nekorytaylor123
+      POSTGRES_DB: soika
+    ports:
+      - 5432:5432
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "soika_admin", "-d", "soika"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql
+    depends_on:
+      - db
+    ports:
+      - 3567:3567
+    environment:
+      POSTGRESQL_CONNECTION_URI: "postgresql://soika_admin:nekorytaylor123@db:5432/soika"
+      POSTGRESQL_TABLE_SCHEMA: "auth"
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: >
+        bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # AMQP protocol port
+      - "15672:15672" # Management UI port
+    environment:
+      - RABBITMQ_DEFAULT_USER=soika_admin
+      - RABBITMQ_DEFAULT_PASS=nekorytaylor123
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network:
+    driver: bridge
+# version: "3"
+# services:
+#   app:
+#     image: node:20
+#     volumes:
+#       - ./apps/backend:/app
+#       - /app/node_modules
+#     working_dir: /app
+#     environment:
+#       - NODE_ENV=development
+#     command: bash -c "npm install && npm run dev"
+
+#   caddy:
+#     image: caddy:2
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./Caddyfile:/etc/caddy/Caddyfile
+#       - caddy_data:/data
+#       - caddy_config:/config
+#     depends_on:
+#       - app
+
+# volumes:
+#   caddy_data:
+#   caddy_config:

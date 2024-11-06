@@ -1,0 +1,1 @@
+ALTER TABLE "boards_statuses" ALTER COLUMN "board_id" SET DATA TYPE uuid;
