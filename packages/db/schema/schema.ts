@@ -632,7 +632,6 @@ export const contractRelations = relations(contracts, ({ one }) => ({
 export const samrukContracts = pgTable("samruk_contracts", {
   id: text("id").primaryKey(),
   contractSum: text("contract_sum").notNull(),
-  faktSum: text("fakt_sum").notNull(),
   supplierBiin: text("supplier_biin"),
   supplierId: text("supplier_id"),
   customerBin: text("customer_bin"),

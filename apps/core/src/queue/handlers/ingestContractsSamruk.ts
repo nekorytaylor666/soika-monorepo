@@ -14,15 +14,29 @@ interface ContractListItem {
     id: number;
     identifier: string;
     nameRu: string;
-    bin?: string;
+    nameKk: string;
+    nameEn: string | null;
+    bin: string | null;
   };
   customer: {
     id: number;
     identifier: string;
     nameRu: string;
+    nameKk: string;
+    nameEn: string | null;
     bin: string;
   };
+  contractItemsNameKk: string;
+  contractItemsNameRu: string;
+  contractItemsNameEn: string;
+  contractDateTime: string;
   sumNds: number;
+  contractItems: Array<{
+    id: number;
+    rowNumber: string;
+    tenderSubjectType: string;
+    deleted: boolean;
+  }>;
 }
 
 interface ContractDetail {
@@ -40,14 +54,6 @@ interface ContractDetail {
       briefRu: string;
     };
   }>;
-}
-
-interface ContractsResponse {
-  content: ContractListItem[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
 }
 
 const embedding = new OpenAIEmbeddings({
@@ -88,18 +94,18 @@ function splitTechSpecLanguages(techSpecText: string) {
 }
 export async function ingestContractsSamruk() {
   try {
-    let currentPage = 0;
-    let totalPages = 1;
+    let page = 0;
+    let hasMoreData = true;
 
-    do {
-      const contractsResponse = await withRetry(() =>
-        fetchContractsList(currentPage),
-      );
-      const contractsList = contractsResponse.content;
-      totalPages = contractsResponse.totalPages;
-
-      console.log(`Processing page ${currentPage + 1} of ${totalPages}`);
+    while (hasMoreData) {
+      const contractsList = await withRetry(() => fetchContractsList(page));
+      console.log(`Processing page ${page + 1}`);
       console.log(`Fetched ${contractsList.length} contracts`);
+
+      if (contractsList.length === 0) {
+        hasMoreData = false;
+        break;
+      }
 
       // Process contracts in chunks to limit concurrency
       for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
@@ -140,53 +146,24 @@ export async function ingestContractsSamruk() {
                   const contractData = {
                     id: String(contract.id),
                     contractSum: String(contract.sumNds),
-                    faktSum: String(contract.executionSumNds),
                     supplierBiin: contract.supplier?.identifier,
                     supplierId: String(contract.supplier?.id),
                     customerBin: contract.customer?.bin,
-                    descriptionRu: item.truHistory?.briefRu,
-                    contractDate: new Date(contractDetail.contractDateTime),
-                    localContentProjectedShare:
-                      contract.localContentProjectedShare,
+                    contractDate: new Date(contract.contractDateTime),
                     systemNumber: contract.systemNumber,
                     contractCardStatus: contract.contractCardStatus,
                     advertNumber: contract.advertNumber,
+                    nameRu: contract.contractItemsNameRu,
                     truHistory: item.truHistory,
-                    lot: {
-                      id: item.lotId,
-                      lotNumber: item.lotNumber,
-                      count: item.count,
-                      foreignPrice: item.foreignPrice,
-                      sumNds: item.sumNds,
-                    },
-                    technicalSpecification: techSpecText || null,
+                    technicalSpecification: techSpecText,
+                    localContentProjectedShare:
+                      contract.localContentProjectedShare,
+                    // ... rest of your contract data mapping ...
                   };
 
                   await db.insert(samrukContracts).values(contractData);
                 }),
               );
-
-              // Handle supplier and customer data in parallel
-              await Promise.all([
-                contract.supplier &&
-                  db
-                    .insert(suppliers)
-                    .values({
-                      id: contract.supplier.id,
-                      bin: contract.supplier.identifier,
-                      nameRu: contract.supplier.nameRu,
-                    })
-                    .onConflictDoNothing(),
-                contract.customer &&
-                  db
-                    .insert(customers)
-                    .values({
-                      systemId: contract.customer.id,
-                      bin: contract.customer.bin,
-                      nameRu: contract.customer.nameRu,
-                    })
-                    .onConflictDoNothing(),
-              ]);
             } catch (error) {
               console.error(`Error processing contract ${contract.id}:`, error);
             }
@@ -194,8 +171,8 @@ export async function ingestContractsSamruk() {
         );
       }
 
-      currentPage++;
-    } while (currentPage < totalPages);
+      page++;
+    }
 
     console.log("Finished processing all contracts");
   } catch (error) {
@@ -204,7 +181,7 @@ export async function ingestContractsSamruk() {
   }
 }
 
-async function fetchContractsList(page = 0): Promise<ContractsResponse> {
+async function fetchContractsList(page = 0): Promise<ContractListItem[]> {
   const response = await fetch(
     `https://zakup.sk.kz/eprocsearch/api/external/contract-cards/filter?size=100&page=${page}&sort=lastModifiedDate%2Cdesc`,
     {
