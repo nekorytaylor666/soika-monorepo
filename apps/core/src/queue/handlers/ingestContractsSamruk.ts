@@ -42,12 +42,20 @@ interface ContractDetail {
   }>;
 }
 
+interface ContractsResponse {
+  content: ContractListItem[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
 const embedding = new OpenAIEmbeddings({
   apiKey: process.env.OPENAI_API_KEY,
   model: "text-embedding-3-small",
 });
 
-const CONCURRENT_LIMIT = 5; // Adjust this number based on your system's capabilities
+const CONCURRENT_LIMIT = 10; // Adjust this number based on your system's capabilities
 
 async function downloadAndParsePdf(fileUid: string): Promise<string> {
   const url = `https://zakup.sk.kz/eprocfilestorage/open-api/files/download/${fileUid}`;
@@ -80,108 +88,125 @@ function splitTechSpecLanguages(techSpecText: string) {
 }
 export async function ingestContractsSamruk() {
   try {
-    const contractsList = await withRetry(() => fetchContractsList());
-    console.log(`Fetched ${contractsList.length} contracts`);
+    let currentPage = 0;
+    let totalPages = 1;
 
-    // Process contracts in chunks to limit concurrency
-    for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
-      const chunk = contractsList.slice(i, i + CONCURRENT_LIMIT);
-      await Promise.all(
-        chunk.map(async (contract) => {
-          try {
-            console.log(`Processing contract ${contract.id}`);
-            const contractDetail = await withRetry(() =>
-              fetchContractDetail(contract.id),
-            );
-
-            // Process contract items in parallel
-            await Promise.all(
-              contractDetail.contractItems.map(async (item) => {
-                // Find technical specification document
-                const techSpec = item.contractItemDocuments?.find(
-                  (doc) => doc.documentCategory === "TECHNICAL_SPECIFICATION",
-                );
-
-                // Get technical specification text if available
-                let techSpecText = "";
-                if (techSpec?.fileUid) {
-                  try {
-                    techSpecText = await downloadAndParsePdf(techSpec.fileUid);
-                    const techSpecInfo = splitTechSpecLanguages(techSpecText);
-                    techSpecText = techSpecInfo.ru;
-                  } catch (error) {
-                    console.error(
-                      `Error downloading/parsing PDF for contract ${contract.id}:`,
-                      error,
-                    );
-                  }
-                }
-
-                const contractData = {
-                  id: String(contract.id),
-                  contractSum: String(contract.sumNds),
-                  faktSum: String(contract.executionSumNds),
-                  supplierBiin: contract.supplier?.identifier,
-                  supplierId: contract.supplier?.id,
-                  customerBin: contract.customer?.bin,
-                  descriptionRu: item.truHistory?.briefRu,
-                  contractDate: new Date(contractDetail.contractDateTime),
-                  localContentProjectedShare:
-                    contract.localContentProjectedShare,
-                  systemNumber: contract.systemNumber,
-                  contractCardStatus: contract.contractCardStatus,
-                  advertNumber: contract.advertNumber,
-                  truHistory: item.truHistory,
-                  lot: {
-                    id: item.lotId,
-                    lotNumber: item.lotNumber,
-                    count: item.count,
-                    foreignPrice: item.foreignPrice,
-                    sumNds: item.sumNds,
-                  },
-                  technicalSpecification: techSpecText || null,
-                };
-
-                await db.insert(samrukContracts).values(contractData);
-              }),
-            );
-
-            // Handle supplier and customer data in parallel
-            await Promise.all([
-              contract.supplier &&
-                db
-                  .insert(suppliers)
-                  .values({
-                    id: contract.supplier.id,
-                    bin: contract.supplier.identifier,
-                    nameRu: contract.supplier.nameRu,
-                  })
-                  .onConflictDoNothing(),
-              contract.customer &&
-                db
-                  .insert(customers)
-                  .values({
-                    systemId: contract.customer.id,
-                    bin: contract.customer.bin,
-                    nameRu: contract.customer.nameRu,
-                  })
-                  .onConflictDoNothing(),
-            ]);
-          } catch (error) {
-            console.error(`Error processing contract ${contract.id}:`, error);
-          }
-        }),
+    do {
+      const contractsResponse = await withRetry(() =>
+        fetchContractsList(currentPage),
       );
-    }
+      const contractsList = contractsResponse.content;
+      totalPages = contractsResponse.totalPages;
+
+      console.log(`Processing page ${currentPage + 1} of ${totalPages}`);
+      console.log(`Fetched ${contractsList.length} contracts`);
+
+      // Process contracts in chunks to limit concurrency
+      for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
+        const chunk = contractsList.slice(i, i + CONCURRENT_LIMIT);
+        await Promise.all(
+          chunk.map(async (contract) => {
+            try {
+              console.log(`Processing contract ${contract.id}`);
+              const contractDetail = await withRetry(() =>
+                fetchContractDetail(contract.id),
+              );
+
+              // Process contract items in parallel
+              await Promise.all(
+                contractDetail.contractItems.map(async (item) => {
+                  // Find technical specification document
+                  const techSpec = item.contractItemDocuments?.find(
+                    (doc) => doc.documentCategory === "TECHNICAL_SPECIFICATION",
+                  );
+
+                  // Get technical specification text if available
+                  let techSpecText = "";
+                  if (techSpec?.fileUid) {
+                    try {
+                      techSpecText = await downloadAndParsePdf(
+                        techSpec.fileUid,
+                      );
+                      const techSpecInfo = splitTechSpecLanguages(techSpecText);
+                      techSpecText = techSpecInfo.ru;
+                    } catch (error) {
+                      console.error(
+                        `Error downloading/parsing PDF for contract ${contract.id}:`,
+                        error,
+                      );
+                    }
+                  }
+
+                  const contractData = {
+                    id: String(contract.id),
+                    contractSum: String(contract.sumNds),
+                    faktSum: String(contract.executionSumNds),
+                    supplierBiin: contract.supplier?.identifier,
+                    supplierId: String(contract.supplier?.id),
+                    customerBin: contract.customer?.bin,
+                    descriptionRu: item.truHistory?.briefRu,
+                    contractDate: new Date(contractDetail.contractDateTime),
+                    localContentProjectedShare:
+                      contract.localContentProjectedShare,
+                    systemNumber: contract.systemNumber,
+                    contractCardStatus: contract.contractCardStatus,
+                    advertNumber: contract.advertNumber,
+                    truHistory: item.truHistory,
+                    lot: {
+                      id: item.lotId,
+                      lotNumber: item.lotNumber,
+                      count: item.count,
+                      foreignPrice: item.foreignPrice,
+                      sumNds: item.sumNds,
+                    },
+                    technicalSpecification: techSpecText || null,
+                  };
+
+                  await db.insert(samrukContracts).values(contractData);
+                }),
+              );
+
+              // Handle supplier and customer data in parallel
+              await Promise.all([
+                contract.supplier &&
+                  db
+                    .insert(suppliers)
+                    .values({
+                      id: contract.supplier.id,
+                      bin: contract.supplier.identifier,
+                      nameRu: contract.supplier.nameRu,
+                    })
+                    .onConflictDoNothing(),
+                contract.customer &&
+                  db
+                    .insert(customers)
+                    .values({
+                      systemId: contract.customer.id,
+                      bin: contract.customer.bin,
+                      nameRu: contract.customer.nameRu,
+                    })
+                    .onConflictDoNothing(),
+              ]);
+            } catch (error) {
+              console.error(`Error processing contract ${contract.id}:`, error);
+            }
+          }),
+        );
+      }
+
+      currentPage++;
+    } while (currentPage < totalPages);
+
+    console.log("Finished processing all contracts");
   } catch (error) {
     console.error("Error ingesting contracts:", error);
     throw error;
   }
 }
 
-async function fetchContractsList(): Promise<ContractListItem[]> {
+async function fetchContractsList(page = 0): Promise<ContractsResponse> {
   const response = await fetch(
-    "https://zakup.sk.kz/eprocsearch/api/external/contract-cards/filter?size=100&page=1&sort=lastModifiedDate%2Cdesc",
+    `https://zakup.sk.kz/eprocsearch/api/external/contract-cards/filter?size=100&page=${page}&sort=lastModifiedDate%2Cdesc`,
     {
       method: "POST",
       headers: {
@@ -202,8 +227,7 @@ async function fetchContractsList(): Promise<ContractListItem[]> {
     );
   }
 
-  const data = await response.json();
-  return data;
+  return await response.json();
 }
 
 async function fetchContractDetail(id: number): Promise<ContractDetail> {

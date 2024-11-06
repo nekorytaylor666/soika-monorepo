@@ -634,7 +634,7 @@ export const samrukContracts = pgTable("samruk_contracts", {
   contractSum: text("contract_sum").notNull(),
   faktSum: text("fakt_sum").notNull(),
   supplierBiin: text("supplier_biin"),
-  supplierId: integer("supplier_id"),
+  supplierId: text("supplier_id"),
   customerBin: text("customer_bin"),
   descriptionRu: text("description_ru"),
   contractDate: timestamp("contract_date"),
