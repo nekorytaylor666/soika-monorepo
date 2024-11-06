@@ -47,6 +47,8 @@ const embedding = new OpenAIEmbeddings({
   model: "text-embedding-3-small",
 });
 
+const CONCURRENT_LIMIT = 5; // Adjust this number based on your system's capabilities
+
 async function downloadAndParsePdf(fileUid: string): Promise<string> {
   const url = `https://zakup.sk.kz/eprocfilestorage/open-api/files/download/${fileUid}`;
 
@@ -81,90 +83,95 @@ export async function ingestContractsSamruk() {
     const contractsList = await withRetry(() => fetchContractsList());
     console.log(`Fetched ${contractsList.length} contracts`);
 
-    for (const contract of contractsList) {
-      try {
-        console.log(`Processing contract ${contract.id}`);
-        const contractDetail = await withRetry(() =>
-          fetchContractDetail(contract.id),
-        );
+    // Process contracts in chunks to limit concurrency
+    for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
+      const chunk = contractsList.slice(i, i + CONCURRENT_LIMIT);
+      await Promise.all(
+        chunk.map(async (contract) => {
+          try {
+            console.log(`Processing contract ${contract.id}`);
+            const contractDetail = await withRetry(() =>
+              fetchContractDetail(contract.id),
+            );
 
-        // Process each contract item
-        for (const item of contractDetail.contractItems) {
-          // Find technical specification document
-          const techSpec = item.contractItemDocuments?.find(
-            (doc) => doc.documentCategory === "TECHNICAL_SPECIFICATION",
-          );
+            // Process contract items in parallel
+            await Promise.all(
+              contractDetail.contractItems.map(async (item) => {
+                // Find technical specification document
+                const techSpec = item.contractItemDocuments?.find(
+                  (doc) => doc.documentCategory === "TECHNICAL_SPECIFICATION",
+                );
 
-          // Get technical specification text if available
-          let techSpecText = "";
-          if (techSpec?.fileUid) {
-            try {
-              techSpecText = await downloadAndParsePdf(techSpec.fileUid);
-              const techSpecInfo = splitTechSpecLanguages(techSpecText);
-              techSpecText = techSpecInfo.ru;
-            } catch (error) {
-              console.error(
-                `Error downloading/parsing PDF for contract ${contract.id}:`,
-                error,
-              );
-            }
+                // Get technical specification text if available
+                let techSpecText = "";
+                if (techSpec?.fileUid) {
+                  try {
+                    techSpecText = await downloadAndParsePdf(techSpec.fileUid);
+                    const techSpecInfo = splitTechSpecLanguages(techSpecText);
+                    techSpecText = techSpecInfo.ru;
+                  } catch (error) {
+                    console.error(
+                      `Error downloading/parsing PDF for contract ${contract.id}:`,
+                      error,
+                    );
+                  }
+                }
+
+                const contractData = {
+                  id: String(contract.id),
+                  contractSum: String(contract.sumNds),
+                  faktSum: String(contract.executionSumNds),
+                  supplierBiin: contract.supplier?.identifier,
+                  supplierId: contract.supplier?.id,
+                  customerBin: contract.customer?.bin,
+                  descriptionRu: item.truHistory?.briefRu,
+                  contractDate: new Date(contractDetail.contractDateTime),
+                  localContentProjectedShare:
+                    contract.localContentProjectedShare,
+                  systemNumber: contract.systemNumber,
+                  contractCardStatus: contract.contractCardStatus,
+                  advertNumber: contract.advertNumber,
+                  truHistory: item.truHistory,
+                  lot: {
+                    id: item.lotId,
+                    lotNumber: item.lotNumber,
+                    count: item.count,
+                    foreignPrice: item.foreignPrice,
+                    sumNds: item.sumNds,
+                  },
+                  technicalSpecification: techSpecText || null,
+                };
+
+                await db.insert(samrukContracts).values(contractData);
+              }),
+            );
+
+            // Handle supplier and customer data in parallel
+            await Promise.all([
+              contract.supplier &&
+                db
+                  .insert(suppliers)
+                  .values({
+                    id: contract.supplier.id,
+                    bin: contract.supplier.identifier,
+                    nameRu: contract.supplier.nameRu,
+                  })
+                  .onConflictDoNothing(),
+              contract.customer &&
+                db
+                  .insert(customers)
+                  .values({
+                    systemId: contract.customer.id,
+                    bin: contract.customer.bin,
+                    nameRu: contract.customer.nameRu,
+                  })
+                  .onConflictDoNothing(),
+            ]);
+          } catch (error) {
+            console.error(`Error processing contract ${contract.id}:`, error);
           }
-
-          // Prepare contract data
-          const contractData = {
-            id: String(contract.id),
-            contractSum: String(contract.sumNds),
-            faktSum: String(contract.executionSumNds),
-            supplierBiin: contract.supplier?.identifier,
-            supplierId: contract.supplier?.id,
-            customerBin: contract.customer?.bin,
-            descriptionRu: item.truHistory?.briefRu,
-            contractDate: new Date(contractDetail.contractDateTime),
-            localContentProjectedShare: contract.localContentProjectedShare,
-            systemNumber: contract.systemNumber,
-            contractCardStatus: contract.contractCardStatus,
-            advertNumber: contract.advertNumber,
-            truHistory: item.truHistory,
-            lot: {
-              id: item.lotId,
-              lotNumber: item.lotNumber,
-              count: item.count,
-              foreignPrice: item.foreignPrice,
-              sumNds: item.sumNds,
-            },
-            technicalSpecification: techSpecText || null,
-          };
-
-          // Insert into database using the new samrukContracts table
-          await db.insert(samrukContracts).values(contractData);
-        }
-
-        // Handle supplier and customer data
-        if (contract.supplier) {
-          await db
-            .insert(suppliers)
-            .values({
-              id: contract.supplier.id,
-              bin: contract.supplier.identifier,
-              nameRu: contract.supplier.nameRu,
-            })
-            .onConflictDoNothing();
-        }
-
-        if (contract.customer) {
-          await db
-            .insert(customers)
-            .values({
-              systemId: contract.customer.id,
-              bin: contract.customer.bin,
-              nameRu: contract.customer.nameRu,
-            })
-            .onConflictDoNothing();
-        }
-      } catch (error) {
-        console.error(`Error processing contract ${contract.id}:`, error);
-        continue;
-      }
+        }),
+      );
     }
   } catch (error) {
     console.error("Error ingesting contracts:", error);
