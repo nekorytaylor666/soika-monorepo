@@ -1,6 +1,7 @@
 import type { GosZakupLot } from "../../lib/goszakupSource";
 import openai from "openai";
 import { OpenAIEmbeddings } from "@langchain/openai";
+import { extractTenderInfo } from "../../lib/extractSpecs";
 const embedding = new OpenAIEmbeddings({
   apiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
   batchSize: 512, // Default value if omitted is 512. Max is 2048
@@ -33,13 +34,13 @@ export const handleLotCreation = async (body: { lot: GosZakupLot }) => {
   // console.log('Technical specification file found:', technicalSpecFile.nameRu);
   // const buffer = await fetch(body.lot.Files[0].filePath).then((res) => res.arrayBuffer());
   // console.log('PDF fetched and buffer created');
-  // const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
   // console.log('PDF loaded');
-  // const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  const { totalPages, text } = await extractText(pdf, { mergePages: true });
 
   // console.log(`Extracted text from PDF, total pages: ${totalPages}`);
   // try {
-  // 	const specs = await extractTenderInfo(text as string);
+  const specs = await extractTenderInfo(text as string);
   // 	const res = await embedding.embedQuery(`${specs.lotName} ${specs.lotDescription} ${specs.lotAdditionalDescription}`);
   // 	console.log('Tender specifications extracted:', specs);
 

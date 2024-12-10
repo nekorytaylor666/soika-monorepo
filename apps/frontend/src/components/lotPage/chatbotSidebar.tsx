@@ -8,15 +8,19 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/ui/markdown";
 import { Skeleton } from "../ui/skeleton";
 import { ScrollArea } from "../ui/scroll-area";
-import { DocumentMentionInput } from "../documentMention";
 import type { Lot } from "db/schema/schema";
+import { DocumentMentionInput } from "../documentMention";
 
 const ChatbotSidebar: React.FC<{ lot: Lot }> = ({ lot }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
     useChat({
-      api: "http://localhost:3000/generate",
-      onError: () => toast.error("An error occurred. Please try again later."),
+      api: "http://localhost:3000/api/chat",
+      body: {
+        lotId: lot.id,
+      },
+      onError: () =>
+        toast.error("Произошла ошибка. Пожалуйста, попробуйте позже."),
     });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,27 +61,24 @@ const ChatbotSidebar: React.FC<{ lot: Lot }> = ({ lot }) => {
         )}
       >
         <div className="absolute right-4 top-4">
-          <Button
-            onClick={() => setIsOpen(false)}
-            variant="ghost"
-            size="icon"
-            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
-          >
+          <Button onClick={() => setIsOpen(false)} variant="ghost" size="icon">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </Button>
         </div>
+
         <div className="flex flex-col space-y-2 text-center sm:text-left">
           <h2 className="text-lg font-semibold text-foreground">ИИ помощник</h2>
           <p className="text-sm text-muted-foreground">
             Обсудите с нашим ИИ помощником все детали вашего лота.
           </p>
         </div>
+
         <ScrollArea className="mt-4 h-[calc(100%-9rem)] w-full pb-4 pr-4">
           <div className="flex flex-col space-y-4">
             {messages.map((m) => (
-              <div key={m.id} className="flex flex-col gap-2">
-                <div className="w-6 h-6 flex-shrink-0 mt-1">
+              <div key={m.id} className="flex flex-row gap-2">
+                <div className="w-6 h-6 flex-shrink-0">
                   {m.role === "assistant" ? (
                     <BotMessageSquare className="text-primary" />
                   ) : (
@@ -91,7 +92,7 @@ const ChatbotSidebar: React.FC<{ lot: Lot }> = ({ lot }) => {
             ))}
             {isLoading &&
               messages[messages.length - 1]?.role !== "assistant" && (
-                <div className="flex flex-row gap-2 ">
+                <div className="flex flex-row gap-2">
                   <div className="w-6 h-6 flex-shrink-0">
                     <BotMessageSquare className="text-primary" />
                   </div>
@@ -104,30 +105,17 @@ const ChatbotSidebar: React.FC<{ lot: Lot }> = ({ lot }) => {
           </div>
           <div ref={messagesEndRef} />
         </ScrollArea>
+
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-background">
-          {isOpen && (
-            <form onSubmit={handleSubmit}>
-              <Input
-                autoFocus
-                type="text"
-                placeholder="Введите ваше сообщение..."
-                value={input}
-                onChange={handleInputChange}
-              />
-              <DocumentMentionInput
-                onMention={(doc) => console.log("Mentioned document:", doc)}
-                fetchDocuments={async (query) => {
-                  // Implement your document fetching logic here
-                  return [
-                    ...lot.files.map((f) => ({
-                      id: f.filePath,
-                      title: f.nameRu,
-                    })),
-                  ];
-                }}
-              />
-            </form>
-          )}
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <Input
+              autoFocus
+              type="text"
+              placeholder="Введите ваше сообщение..."
+              value={input}
+              onChange={handleInputChange}
+            />
+          </form>
         </div>
       </div>
     </>

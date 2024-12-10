@@ -16,6 +16,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
+import { openai } from "@ai-sdk/openai";
+import { streamText } from "ai";
 
 const whereClauseSchema = z.object({
   conditions: z.array(
@@ -28,7 +30,7 @@ const whereClauseSchema = z.object({
         z.array(z.string()),
         z.array(z.number()),
       ]),
-    })
+    }),
   ),
 });
 
@@ -74,7 +76,7 @@ export const lotRouter = router({
         maxBudget: z.number().nullish(),
         tradeMethod: z.number().nullish(),
         withRecommendations: z.boolean().default(false),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const { query, limit, offset } = input;
@@ -87,10 +89,10 @@ export const lotRouter = router({
       }
       const startTime = performance.now();
 
-      // Генерируем эмбеддинг для поискового запроса
+      // Generate embedding for the search query
       const embeddingPromise = embeddings.embedQuery(query);
 
-      // Выполняем поиск по ключевым словам
+      // Perform search using keywords
       const keywordResultsPromise = ctx.db.query.lots.findMany({
         where: (table, { inArray, gt, lt }) =>
           and(
@@ -99,7 +101,7 @@ export const lotRouter = router({
                   table.id,
                   ctx.db
                     .select({ lotId: recommendedProducts.lotId })
-                    .from(recommendedProducts)
+                    .from(recommendedProducts),
                 )
               : undefined,
             sql`to_tsvector('russian', ${lots.lotName} || ' ' || ${lots.lotDescription} || ' ' || ${lots.lotAdditionalDescription}) @@ plainto_tsquery('russian', ${query})`,
@@ -107,7 +109,7 @@ export const lotRouter = router({
             input.maxBudget ? lt(table.budget, input.maxBudget) : undefined,
             input.tradeMethod
               ? sql`ref_trade_methods ->> 'id' = ${input.tradeMethod}`
-              : undefined
+              : undefined,
           ),
         with: {
           recommendedProducts: {
@@ -116,19 +118,19 @@ export const lotRouter = router({
             },
           },
         },
-        limit: 25,
+        limit: 10,
         orderBy: desc(
-          sql`ts_rank_cd(to_tsvector('russian', ${lots.lotName} || ' ' || ${lots.lotDescription} || ' ' || ${lots.lotAdditionalDescription}), plainto_tsquery('russian', ${query}))`
+          sql`ts_rank_cd(to_tsvector('russian', ${lots.lotName} || ' ' || ${lots.lotDescription} || ' ' || ${lots.lotAdditionalDescription}), plainto_tsquery('russian', ${query}))`,
         ),
       });
 
-      // Ожидаем завершения обоих запросов
+      // Wait for both queries to complete
       const [embedding, keywordResults] = await Promise.all([
         embeddingPromise,
         keywordResultsPromise,
       ]);
 
-      // Выполняем семантический поиск
+      // Perform semantic search
       const semanticResults = await ctx.db.query.lots.findMany({
         where: (table, { inArray, gt, lt }) =>
           and(
@@ -137,7 +139,7 @@ export const lotRouter = router({
                   table.id,
                   ctx.db
                     .select({ lotId: recommendedProducts.lotId })
-                    .from(recommendedProducts)
+                    .from(recommendedProducts),
                 )
               : undefined,
             sql`${cosineDistance(lots.embedding, embedding)} < 0.8`,
@@ -145,7 +147,7 @@ export const lotRouter = router({
             input.maxBudget ? lt(table.budget, input.maxBudget) : undefined,
             input.tradeMethod
               ? sql`ref_trade_methods ->> 'id' = ${input.tradeMethod}`
-              : undefined
+              : undefined,
           ),
         with: {
           recommendedProducts: {
@@ -154,23 +156,26 @@ export const lotRouter = router({
             },
           },
         },
-        limit: 25,
+        limit: 10,
         orderBy: asc(cosineDistance(lots.embedding, embedding)),
       });
 
-      // Объединяем и удаляем дубликаты результатов
+      // Combine and remove duplicates
       const combinedResults = Array.from(
-        new Set([...semanticResults, ...keywordResults])
+        new Set([...semanticResults, ...keywordResults]),
       );
 
-      // Подготавливаем документы для переранжирования
-      const documents = combinedResults.map((lot) => ({
-        pageContent: `${lot.lotName} ${lot.lotDescription} ${lot.lotAdditionalDescription}`,
-        metadata: lot,
+      // Prepare documents for reranking - now only sending text
+      const textsForReranking = combinedResults.map((lot) => ({
+        text: `${lot.lotName} ${lot.lotDescription} ${lot.lotAdditionalDescription}`,
+        metadata: {
+          ...lot,
+          embedding: [],
+        },
       }));
 
-      // Переранжируем с использованием Jina AI
-      let rerankedResults = documents;
+      // Rerank using Jina AI
+      let rerankedResults = textsForReranking;
       try {
         const jinaResponse = await fetch("https://api.jina.ai/v1/rerank", {
           method: "POST",
@@ -182,34 +187,32 @@ export const lotRouter = router({
           body: JSON.stringify({
             model: "jina-reranker-v2-base-multilingual",
             query: query,
-            documents: documents.map((doc) => ({
-              text: doc.pageContent,
-              ...doc,
-            })),
+            documents: textsForReranking.map((doc) => doc.text),
             top_n: limit,
           }),
         });
 
         if (!jinaResponse.ok) {
           throw new Error(
-            `Запрос к API Jina не удался со статусом ${jinaResponse.status}`
+            `Jina API request failed with status ${jinaResponse.status}`,
           );
         }
 
         const jinaData = await jinaResponse.json();
+        // Reattach metadata using the returned indices
         rerankedResults = jinaData.results.map((result: any) => ({
-          ...documents[result.index].metadata,
-          score: result.score,
+          ...textsForReranking[result.index].metadata,
+          score: result.relevance_score,
         }));
       } catch (error) {
-        console.error("Ошибка при переранжировании Jina:", error);
-        rerankedResults = documents.map((doc) => doc.metadata);
+        console.error("Error during Jina reranking:", error);
+        rerankedResults = textsForReranking.map((doc) => doc.metadata);
       }
 
       const endTime = performance.now();
       const duration = endTime - startTime;
 
-      console.log(`Длительность поиска: ${duration.toFixed(2)} мс`);
+      console.log(`Search duration: ${duration.toFixed(2)} ms`);
 
       return {
         results: rerankedResults.slice(offset, offset + limit),
@@ -225,7 +228,7 @@ export const lotRouter = router({
         .select()
         .from(boardsStatuses)
         .where(
-          and(eq(boardsStatuses.board, boardId), eq(boardsStatuses.order, 0))
+          and(eq(boardsStatuses.board, boardId), eq(boardsStatuses.order, 0)),
         );
 
       const deal = await ctx.db
@@ -246,4 +249,50 @@ export const lotRouter = router({
     });
     return data;
   }),
+  chat: publicProcedure
+    .input(
+      z.object({
+        lotId: z.number(),
+        messages: z.array(
+          z.object({
+            role: z.enum(["user", "assistant", "system"]),
+            content: z.string(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { lotId, messages } = input;
+
+      // Get lot details to provide context
+      const lot = await ctx.db.query.lots.findFirst({
+        where: eq(lots.id, lotId),
+      });
+
+      if (!lot) {
+        throw new Error("Lot not found");
+      }
+
+      // Create system message with lot context
+      const systemMessage = {
+        role: "system",
+        content: `You are a helpful AI assistant for analyzing tender details. Here is the context about the tender:
+        Tender Name: ${lot.lotName}
+        Description: ${lot.lotDescription}
+        Additional Details: ${lot.lotAdditionalDescription}
+        Budget: ${lot.budget}
+        Delivery Term: ${lot.deliveryTerm}
+        Delivery Places: ${lot.deliveryPlaces}
+        
+        Please help users understand the tender requirements and provide relevant information.
+        Be concise and professional in your responses.`,
+      };
+
+      const result = await streamText({
+        model: openai("gpt-4-turbo"),
+        messages: [systemMessage, ...messages],
+      });
+
+      return result.toDataStreamResponse();
+    }),
 });

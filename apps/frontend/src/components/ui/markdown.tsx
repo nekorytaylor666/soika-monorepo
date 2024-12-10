@@ -7,7 +7,7 @@ export const NonMemoizedMarkdown = ({ children }: { children: string }) => {
 
   return (
     <ReactMarkdown
-      className="prose prose-sm max-w-none"
+      className="prose prose-sm max-w-none text-secondary-foreground prose-a:text-primary prose-strong:text-primary"
       remarkPlugins={[remarkGfm]}
       components={components}
     >

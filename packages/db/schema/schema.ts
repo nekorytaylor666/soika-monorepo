@@ -14,6 +14,7 @@ import {
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
+import type { TechnicalSpecification } from "../../../apps/core/src/lib/extractSpecs";
 
 import { customType } from "drizzle-orm/pg-core";
 import { z } from "zod";
@@ -596,6 +597,60 @@ export const contracts = pgTable("contracts", {
   }),
 });
 
+// Goszakup contracts table
+export const goszakupContracts = pgTable("goszakup_contracts", {
+  id: text("id"),
+  contractSum: text("contract_sum").notNull(),
+  faktSum: text("fakt_sum").notNull(),
+  supplierBik: text("supplier_bik"),
+  supplierBiin: text("supplier_biin"),
+  supplierId: integer("supplier_id"),
+  customerBik: text("customer_bik"),
+  descriptionRu: text("description_ru"),
+  customerBin: text("customer_bin"),
+  technicalSpecification: jsonb(
+    "technical_specification",
+  ).$type<TechnicalSpecification>(),
+  contractDate: timestamp("contract_date"),
+  createdAt: timestamp("created_at").default(sql`now()`),
+  localContentProjectedShare: doublePrecision("local_content_projected_share"),
+
+  truHistory: jsonb("tru_history").$type<{
+    code: string;
+    ru: string;
+    briefRu: string;
+  }>(),
+  // JSONB fields
+  refSubjectType: jsonb("ref_subject_type").$type<{
+    nameRu: string;
+    id: number;
+  }>(),
+  refContractStatus: jsonb("ref_contract_status").$type<{
+    id: number;
+    nameRu: string;
+  }>(),
+  trdBuy: jsonb("trd_buy").$type<{
+    id: number;
+    numberAnno: string;
+    nameRu: string;
+  }>(),
+  contractUnit: jsonb("contract_unit").$type<{
+    id: number;
+    lotId: number;
+  }>(),
+  lot: jsonb("lot").$type<{
+    id: number;
+    nameRu: string;
+    descriptionRu: string;
+    ktruCode: string;
+  }>(),
+  embedding: vector("embedding", {
+    dimensions: 1536,
+  }),
+  contractms: text("contractms"),
+  technicalSpecificationText: text("technical_specification_text"),
+});
+
 // Suppliers table
 export const suppliers = pgTable("suppliers", {
   id: integer("id").primaryKey(),
@@ -627,6 +682,21 @@ export const contractRelations = relations(contracts, ({ one }) => ({
     references: [customers.bin],
   }),
 }));
+
+// Add relations for goszakupContracts
+export const goszakupContractRelations = relations(
+  goszakupContracts,
+  ({ one }) => ({
+    supplier: one(suppliers, {
+      fields: [goszakupContracts.supplierId],
+      references: [suppliers.id],
+    }),
+    customer: one(customers, {
+      fields: [goszakupContracts.customerBin],
+      references: [customers.bin],
+    }),
+  }),
+);
 
 // Add this new table for Samruk contracts
 export const samrukContracts = pgTable("samruk_contracts", {

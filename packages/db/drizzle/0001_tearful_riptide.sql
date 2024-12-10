@@ -1,0 +1,1 @@
+ALTER TABLE "goszakup_contracts" ALTER COLUMN "technical_specification" SET DATA TYPE jsonb;
