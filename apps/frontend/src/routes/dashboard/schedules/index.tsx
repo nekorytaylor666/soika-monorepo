@@ -49,7 +49,7 @@ import {
   type Schedule,
   scheduleFrequencyEnum,
   scheduleFrequencyEnumSchema,
-} from "db/schema/schema";
+} from "db/schema";
 import { getFrequencyLabel } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";

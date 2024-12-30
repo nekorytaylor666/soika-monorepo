@@ -54,6 +54,7 @@
     "@zitadel/react": "^1.0.3",
     "ai": "^3.3.21",
     "axios": "^1.6.8",
+    "better-auth": "^1.1.6",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

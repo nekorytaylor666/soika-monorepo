@@ -4,7 +4,7 @@ import {
   scheduleFrequencyEnum,
   scheduleFrequencyEnumSchema,
   schedules,
-} from "db/schema/schema";
+} from "db/schema";
 import { eq } from "drizzle-orm";
 
 export const scheduleRouter = router({
@@ -24,7 +24,7 @@ export const scheduleRouter = router({
         query: z.string(),
         frequency: scheduleFrequencyEnumSchema,
         organizationId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const data = await ctx.db.insert(schedules).values({
@@ -40,7 +40,7 @@ export const scheduleRouter = router({
         id: z.string(),
         query: z.string(),
         frequency: scheduleFrequencyEnumSchema,
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const data = await ctx.db

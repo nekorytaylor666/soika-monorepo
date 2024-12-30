@@ -14,7 +14,7 @@ import {
   DragHandleVerticalIcon,
 } from "@radix-ui/react-icons";
 import { getRouteApi } from "@tanstack/react-router";
-import type { Deal } from "db/schema/schema";
+import type { Deal } from "db/schema";
 import { GripVertical } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";

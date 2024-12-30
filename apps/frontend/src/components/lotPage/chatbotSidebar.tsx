@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Markdown } from "@/components/ui/markdown";
 import { Skeleton } from "../ui/skeleton";
 import { ScrollArea } from "../ui/scroll-area";
-import type { Lot } from "db/schema/schema";
+import type { Lot } from "db/schema";
 import { DocumentMentionInput } from "../documentMention";
 
 const ChatbotSidebar: React.FC<{ lot: Lot }> = ({ lot }) => {

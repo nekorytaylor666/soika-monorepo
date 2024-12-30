@@ -17,7 +17,7 @@ import {
 } from "./ui/dropdown-menu";
 import { Progress } from "./ui/progress";
 import { Link } from "@tanstack/react-router";
-import type { RecommendedProduct } from "db/schema/schema";
+import type { RecommendedProduct } from "db/schema";
 
 export function TenderProductTable(props: {
   recommendedProducts: RecommendedProduct[];

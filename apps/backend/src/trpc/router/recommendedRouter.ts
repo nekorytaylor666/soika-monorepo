@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
-import { recommendedProducts } from "db/schema/schema";
+import { recommendedProducts } from "db/schema";
 
 export const recommendedProductsRouter = router({
   getById: publicProcedure.input(z.string()).query(async ({ input, ctx }) => {

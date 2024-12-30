@@ -1,4 +1,4 @@
-import { lots, recommendedProducts } from "db/schema/schema";
+import { lots, recommendedProducts } from "db/schema";
 import { db } from "db/connection";
 import { eq } from "drizzle-orm";
 import { evaluateProductCompliance } from "../lib/compliance";

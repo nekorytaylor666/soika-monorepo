@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useChat } from "ai/react";
-import type { Lot } from "db/schema/schema";
+import type { Lot } from "db/schema";
 import { toast } from "sonner";
 import { Markdown } from "@/components/ui/markdown";
 import { BotMessageSquare, User } from "lucide-react";

@@ -51,12 +51,7 @@ import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DashIcon } from "@radix-ui/react-icons";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import type {
-  Board,
-  Lot,
-  RecommendedProduct,
-  TradeMethod,
-} from "db/schema/schema";
+import type { Board, Lot, RecommendedProduct, TradeMethod } from "db/schema";
 import {
   Check,
   ChevronsUpDown,

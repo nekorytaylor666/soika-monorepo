@@ -1,7 +1,7 @@
 import { openai } from "@ai-sdk/openai";
 import { embed, embedMany } from "ai";
 import { db } from "db/connection";
-import { ktruCodes } from "db/schema/schema";
+import { ktruCodes } from "db/schema";
 import { cosineDistance, eq, is, isNull, sql } from "drizzle-orm";
 
 const BATCH_SIZE = 100; // Adjust based on your needs and API limits

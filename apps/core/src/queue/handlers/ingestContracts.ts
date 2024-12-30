@@ -2,7 +2,7 @@
 import { Document } from "@langchain/core/documents";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { db } from "db/connection";
-import { contracts, goszakupContracts } from "db/schema/schema";
+import { contracts, goszakupContracts } from "db/schema";
 import { asc, cosineDistance, desc, gt, sql } from "drizzle-orm";
 import { chunk } from "lodash";
 import { load } from "cheerio";

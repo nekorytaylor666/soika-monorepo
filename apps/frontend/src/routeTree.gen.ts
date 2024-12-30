@@ -15,6 +15,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Route as rootRoute } from './routes/__root'
 import { Route as VerifyOtpImport } from './routes/verifyOtp'
 import { Route as TestImport } from './routes/test'
+import { Route as SignupImport } from './routes/signup'
 import { Route as OnboardingImport } from './routes/onboarding'
 import { Route as LoginImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard/route'
@@ -64,6 +65,12 @@ const VerifyOtpRoute = VerifyOtpImport.update({
 const TestRoute = TestImport.update({
   id: '/test',
   path: '/test',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const SignupRoute = SignupImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -224,6 +231,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingImport
+      parentRoute: typeof rootRoute
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupImport
       parentRoute: typeof rootRoute
     }
     '/test': {
@@ -433,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/verifyOtp': typeof VerifyOtpRoute
   '/about': typeof AboutLazyRoute
@@ -459,6 +474,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexLazyRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/verifyOtp': typeof VerifyOtpRoute
   '/about': typeof AboutLazyRoute
@@ -487,6 +503,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/verifyOtp': typeof VerifyOtpRoute
   '/about': typeof AboutLazyRoute
@@ -516,6 +533,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/onboarding'
+    | '/signup'
     | '/test'
     | '/verifyOtp'
     | '/about'
@@ -541,6 +559,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/onboarding'
+    | '/signup'
     | '/test'
     | '/verifyOtp'
     | '/about'
@@ -567,6 +586,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/onboarding'
+    | '/signup'
     | '/test'
     | '/verifyOtp'
     | '/about'
@@ -595,6 +615,7 @@ export interface RootRouteChildren {
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  SignupRoute: typeof SignupRoute
   TestRoute: typeof TestRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   AboutLazyRoute: typeof AboutLazyRoute
@@ -606,6 +627,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  SignupRoute: SignupRoute,
   TestRoute: TestRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   AboutLazyRoute: AboutLazyRoute,
@@ -626,6 +648,7 @@ export const routeTree = rootRoute
         "/dashboard",
         "/login",
         "/onboarding",
+        "/signup",
         "/test",
         "/verifyOtp",
         "/about",
@@ -660,6 +683,9 @@ export const routeTree = rootRoute
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"
+    },
+    "/signup": {
+      "filePath": "signup.tsx"
     },
     "/test": {
       "filePath": "test.tsx"

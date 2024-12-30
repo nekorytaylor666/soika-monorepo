@@ -23,7 +23,7 @@ import { DealTasks } from "@/components/tasks/TaskList";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import type { Deal, DealTask, Lot, RecommendedProduct } from "db/schema/schema";
+import type { Deal, DealTask, Lot, RecommendedProduct } from "db/schema";
 import { useState } from "react";
 import { toast } from "sonner";
 

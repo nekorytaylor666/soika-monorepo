@@ -11,7 +11,7 @@ import type { UniqueIdentifier } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Draggable } from "@hello-pangea/dnd";
 import { Link } from "@tanstack/react-router";
-import type { BoardDeal } from "db/schema/schema";
+import type { BoardDeal } from "db/schema";
 import { cva } from "class-variance-authority";
 import {
   Bot,

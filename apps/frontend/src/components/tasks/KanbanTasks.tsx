@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { getStatusLabel } from "@/lib/utils";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
-import type { DealTask, TaskStatus } from "db/schema/schema";
+import type { DealTask, TaskStatus } from "db/schema";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";

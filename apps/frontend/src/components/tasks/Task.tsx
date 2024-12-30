@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { getStatusLabel } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import type { DealTask } from "db/schema/schema";
+import type { DealTask } from "db/schema";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import React from "react";

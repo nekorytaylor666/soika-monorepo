@@ -11,34 +11,47 @@ import {
 } from "@/components/ui/card";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Upload } from "lucide-react";
 import { authClient } from "@/lib/auth";
 
-export const Route = createFileRoute("/login")({
-  component: LoginForm,
+export const Route = createFileRoute("/signup")({
+  component: SignUpForm,
 });
 
-interface LoginFormData {
+interface SignUpFormData {
   email: string;
   password: string;
+  name: string;
 }
 
-export function LoginForm() {
+function SignUpForm() {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormData>();
+  } = useForm<SignUpFormData>();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
 
-  const onSubmit = async (values: LoginFormData) => {
+  const convertImageToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const onSubmit = async (values: SignUpFormData) => {
     setIsLoading(true);
     try {
-      const { data, error } = await authClient.signIn.email(
+      const { data, error } = await authClient.signUp.email(
         {
           email: values.email,
           password: values.password,
+          name: values.name,
+          image: image ? await convertImageToBase64(image) : undefined,
         },
         {
           onRequest: () => {
@@ -76,9 +89,9 @@ export function LoginForm() {
       <div className="flex h-screen items-center justify-center">
         <Card className="mx-auto max-w-sm">
           <CardHeader>
-            <CardTitle className="text-2xl">Вход</CardTitle>
+            <CardTitle className="text-2xl">Регистрация</CardTitle>
             <CardDescription>
-              Введите свой email и пароль, чтобы войти в свой аккаунт
+              Создайте новый аккаунт, чтобы начать работу
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -102,12 +115,35 @@ export function LoginForm() {
                   required
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="name">Имя</Label>
+                <Input {...register("name")} id="name" type="text" required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="image">Фото профиля</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setImage(e.target.files?.[0] || null)}
+                    className="flex-1"
+                  />
+                  {image && (
+                    <img
+                      src={URL.createObjectURL(image)}
+                      alt="Preview"
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  )}
+                </div>
+              </div>
 
               <Button type="submit" className="w-full">
                 {isLoading ? (
                   <LoaderCircle className="animate-spin" />
                 ) : (
-                  "Войти"
+                  "Зарегистрироваться"
                 )}
               </Button>
               <Button variant="outline" className="w-full">
@@ -115,9 +151,9 @@ export function LoginForm() {
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
-              Нет аккаунта?{" "}
-              <Link to="/signup" className="underline">
-                Зарегистрироваться
+              Уже есть аккаунт?{" "}
+              <Link to="/login" className="underline">
+                Войти
               </Link>
             </div>
           </CardContent>

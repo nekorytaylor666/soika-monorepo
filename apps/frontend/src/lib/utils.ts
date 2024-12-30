@@ -1,11 +1,7 @@
 import type { ColumnDragData } from "@/components/kanbanBoard/BoardColumn";
 import type { TaskDragData } from "@/components/kanbanBoard/TaskCard";
 import type { Active, DataRef, Over } from "@dnd-kit/core";
-import type {
-  ScheduleFrequency,
-  TaskPriority,
-  TaskStatus,
-} from "db/schema/schema";
+import type { ScheduleFrequency, TaskPriority, TaskStatus } from "db/schema";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -16,7 +12,7 @@ export function cn(...inputs: ClassValue[]) {
 type DraggableData = ColumnDragData | TaskDragData;
 
 export function hasDraggableData<T extends Active | Over>(
-  entry: T | null | undefined
+  entry: T | null | undefined,
 ): entry is T & {
   data: DataRef<DraggableData>;
 } {
@@ -41,7 +37,7 @@ export function formatBytes(
   opts: {
     decimals?: number;
     sizeType?: "accurate" | "normal";
-  } = {}
+  } = {},
 ) {
   const { decimals = 0, sizeType = "normal" } = opts;
 

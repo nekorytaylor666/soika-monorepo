@@ -17,7 +17,7 @@ import { TenderProductTable } from "@/components/TenderProductTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import type { Lot, RecommendedProduct } from "db/schema/schema";
+import type { Lot, RecommendedProduct } from "db/schema";
 import ChatbotSidebar from "@/components/lotPage/chatbotSidebar";
 
 export const Route = createFileRoute("/dashboard/lots/$lotId")({

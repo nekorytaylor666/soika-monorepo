@@ -10,7 +10,7 @@ import {
   lots,
   recommendedProducts,
   tradeMethods,
-} from "db/schema/schema";
+} from "db/schema";
 import { embeddings } from "../../lib/ai";
 import { ChatOpenAI } from "@langchain/openai";
 import { RunnableSequence } from "@langchain/core/runnables";

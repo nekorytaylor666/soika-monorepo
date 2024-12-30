@@ -36,7 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import type { DealTask } from "db/schema/schema";
+import type { DealTask } from "db/schema";
 import { toast } from "sonner";
 import {
   Dialog,

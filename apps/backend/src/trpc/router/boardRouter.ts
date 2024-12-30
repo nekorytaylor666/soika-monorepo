@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { authenticatedProcedure, publicProcedure, router } from "..";
-import { boards, boardsStatuses, dealBoard } from "db/schema/schema";
+import { boards, boardsStatuses, dealBoard } from "db/schema";
 
 export const boardRouter = router({
   getAllByUser: authenticatedProcedure
@@ -36,7 +36,7 @@ export const boardRouter = router({
     const statuses = await ctx.db.query.boardsStatuses.findMany({
       where: and(
         eq(boardsStatuses.board, input),
-        eq(boardsStatuses.isArchived, false)
+        eq(boardsStatuses.isArchived, false),
       ),
     });
     return {
@@ -97,9 +97,9 @@ export const boardRouter = router({
           z.object({
             id: z.string(),
             order: z.number(),
-          })
+          }),
         ),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { boardId, columnOrders } = input;
@@ -112,7 +112,7 @@ export const boardRouter = router({
             .update(boardsStatuses)
             .set({ order })
             .where(
-              sql`${boardsStatuses.id} = ${id} AND ${boardsStatuses.board} = ${boardId}`
+              sql`${boardsStatuses.id} = ${id} AND ${boardsStatuses.board} = ${boardId}`,
             );
         }
       });

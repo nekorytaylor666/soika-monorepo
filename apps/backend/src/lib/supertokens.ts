@@ -3,7 +3,7 @@ import Session from "supertokens-node/recipe/session";
 import Passwordless from "supertokens-node/recipe/passwordless";
 import Dashboard from "supertokens-node/recipe/dashboard";
 import { db } from "db/connection";
-import { profile } from "db/schema/schema";
+import { user } from "db/schema";
 
 const connectionURI = process.env.SUPERTOKENS_CONNECTION_URI as string;
 if (!connectionURI) {
@@ -69,11 +69,11 @@ const recipeList = [
                   response.createdNewRecipeUser &&
                   response.user.loginMethods.length === 1
                 ) {
-                  await db.insert(profile).values({
-                    email: emails[0],
-                    name: "Аноним",
-                    id,
-                  });
+                  // await db.insert(user).values({
+                  //   email: emails[0],
+                  //   name: "Аноним",
+                  //   id,
+                  // });
                   // TODO: post sign up logic
                 } else {
                   // TODO: post sign in logic

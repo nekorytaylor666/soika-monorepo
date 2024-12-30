@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpcClient } from "@/hooks/useTrpc";
+import { authClient } from "@/lib/auth";
 import { trpc } from "@/lib/trpc";
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 import { redirect } from "@tanstack/react-router";
@@ -39,7 +40,9 @@ import Session from "supertokens-web-js/recipe/session";
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
   beforeLoad: async () => {
-    if (!(await Session.doesSessionExist())) {
+    const { data, error } = await authClient.getSession();
+    console.log(data);
+    if (!data) {
       throw redirect({ to: "/login" });
     }
   },

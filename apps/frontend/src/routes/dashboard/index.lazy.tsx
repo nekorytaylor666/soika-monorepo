@@ -18,7 +18,7 @@ import {
 } from "@radix-ui/react-dialog";
 import { Label } from "@radix-ui/react-dropdown-menu";
 import { Link, createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { RecommendedLots } from "db/schema/schema";
+import { RecommendedLots } from "db/schema";
 import { PackageSearchIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ArrowRightIcon } from "lucide-react";

@@ -20,38 +20,23 @@ import { customType } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { jsonb, tsVector } from "../custom-types";
 
-export const profile = pgTable("profile", {
-  // Matches id from auth.users table in Supabase
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull(),
-  image: text("image"),
-});
-
-export type Profile = typeof profile.$inferSelect;
-
-export const profileRelations = relations(profile, ({ many, one }) => ({
-  organizations: many(organizationMembers),
-  onboarding: one(onboarding),
-}));
-
 export const onboarding = pgTable("onboarding", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => profile.id),
+  userId: text("user_id").references(() => user.id),
   completed: boolean("completed").default(false),
 });
 
 export const onboardingRelations = relations(onboarding, ({ one }) => ({
-  user: one(profile, { fields: [onboarding.userId], references: [profile.id] }),
+  user: one(user, { fields: [onboarding.userId], references: [user.id] }),
 }));
 
 export const deals = pgTable("deals", {
   id: uuid("id").defaultRandom().primaryKey(),
   lot: integer("lot_id").references(() => lots.id),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-  createdBy: uuid("created_by")
+  createdBy: text("created_by")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   organizationId: uuid("organization_id").references(() => organizations.id),
 });
 
@@ -94,16 +79,16 @@ export const dealTasks = pgTable("deal_tasks", {
   name: text("name"),
   description: text("description"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-  createdBy: uuid("created_by")
+  createdBy: text("created_by")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   isCompleted: boolean("is_completed").default(false),
   isArchived: boolean("is_archived").default(false),
   completedAt: timestamp("completed_at"),
-  completedBy: uuid("completed_by").references(() => profile.id),
-  assignedTo: uuid("assigned_to").references(() => profile.id),
+  completedBy: text("completed_by").references(() => user.id),
+  assignedTo: text("assigned_to").references(() => user.id),
   assignedAt: timestamp("assigned_at").default(sql`now()`),
-  assignedBy: uuid("assigned_by").references(() => profile.id),
+  assignedBy: text("assigned_by").references(() => user.id),
   dueDate: timestamp("due_date"),
   // Add these new fields
   status: taskStatusEnum("status").default("not_started").notNull(),
@@ -142,7 +127,7 @@ export const dealBoardRelations = relations(dealBoard, ({ one }) => ({
 
 export const boards = pgTable("boards", {
   id: uuid("id").defaultRandom().primaryKey(),
-  boardOwner: uuid("board_owner").references(() => profile.id),
+  boardOwner: text("board_owner").references(() => user.id),
   name: text("name"),
   organizationId: uuid("organization_id").references(() => organizations.id),
 });
@@ -325,9 +310,9 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   bin: text("bin").notNull().unique(),
   name: text("name").notNull(),
-  ownerId: uuid("owner_id")
+  ownerId: text("owner_id")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   isContractsIngested: boolean("is_contracts_ingested").default(false),
 });
@@ -337,9 +322,9 @@ export type Organization = typeof organizations.$inferSelect;
 export const organizationRelations = relations(
   organizations,
   ({ one, many }) => ({
-    owner: one(profile, {
+    owner: one(user, {
       fields: [organizations.ownerId],
-      references: [profile.id],
+      references: [user.id],
     }),
     members: many(organizationMembers),
   }),
@@ -350,9 +335,9 @@ export const organizationMembers = pgTable("organization_members", {
   organizationId: uuid("organization_id")
     .notNull()
     .references(() => organizations.id),
-  profileId: uuid("profile_id")
+  userId: text("user_id")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   role: text("role").notNull().default("member"),
   joinedAt: timestamp("joined_at").default(sql`now()`).notNull(),
 });
@@ -366,9 +351,9 @@ export const organizationMemberRelations = relations(
       fields: [organizationMembers.organizationId],
       references: [organizations.id],
     }),
-    profile: one(profile, {
-      fields: [organizationMembers.profileId],
-      references: [profile.id],
+    user: one(user, {
+      fields: [organizationMembers.userId],
+      references: [user.id],
     }),
   }),
 );
@@ -382,9 +367,9 @@ export const organizationInvitations = pgTable("organization_invitations", {
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
-  invitedById: uuid("invited_by_id")
+  invitedById: text("invited_by_id")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
 });
 
 export const organizationInvitationsRelations = relations(
@@ -394,9 +379,9 @@ export const organizationInvitationsRelations = relations(
       fields: [organizationInvitations.organizationId],
       references: [organizations.id],
     }),
-    invitedBy: one(profile, {
+    invitedBy: one(user, {
       fields: [organizationInvitations.invitedById],
-      references: [profile.id],
+      references: [user.id],
     }),
   }),
 );
@@ -425,9 +410,9 @@ export const organizationActivityLog = pgTable("organization_activity_log", {
   organizationId: uuid("organization_id")
     .notNull()
     .references(() => organizations.id),
-  actorId: uuid("actor_id")
+  actorId: text("actor_id")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   action: text("action").notNull(),
   details: jsonb("details"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
@@ -440,9 +425,9 @@ export const organizationActivityLogRelations = relations(
       fields: [organizationActivityLog.organizationId],
       references: [organizations.id],
     }),
-    actor: one(profile, {
+    actor: one(user, {
       fields: [organizationActivityLog.actorId],
-      references: [profile.id],
+      references: [user.id],
     }),
   }),
 );
@@ -461,9 +446,9 @@ export type ScheduleFrequency = z.infer<typeof scheduleFrequencyEnumSchema>;
 export const schedules = pgTable("schedules", {
   id: uuid("id").defaultRandom().primaryKey(),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-  createdBy: uuid("created_by")
+  createdBy: text("created_by")
     .notNull()
-    .references(() => profile.id),
+    .references(() => user.id),
   query: text("query").notNull(),
   filters: jsonb("filters"),
   frequency: scheduleFrequencyEnum("frequency").default("daily"),
@@ -511,8 +496,8 @@ export const scheduleResultsRelations = relations(
 
 export const telegramUsers = pgTable("telegram_users", {
   id: serial("id").primaryKey(),
-  profileId: uuid("profile_id")
-    .references(() => profile.id)
+  userId: text("user_id")
+    .references(() => user.id)
     .notNull(),
   telegramId: text("telegram_id").notNull().unique(),
   chatId: text("chat_id").notNull(),
@@ -523,17 +508,17 @@ export const telegramUsers = pgTable("telegram_users", {
 });
 
 export const telegramUserRelations = relations(telegramUsers, ({ one }) => ({
-  profile: one(profile, {
-    fields: [telegramUsers.profileId],
-    references: [profile.id],
+  user: one(user, {
+    fields: [telegramUsers.userId],
+    references: [user.id],
   }),
 }));
 
 // Add this new table for notification preferences
 export const notificationPreferences = pgTable("notification_preferences", {
   id: serial("id").primaryKey(),
-  profileId: uuid("profile_id")
-    .references(() => profile.id)
+  userId: text("user_id")
+    .references(() => user.id)
     .notNull(),
   newReports: boolean("new_reports").default(true),
   newRecommendations: boolean("new_recommendations").default(true),
@@ -542,9 +527,9 @@ export const notificationPreferences = pgTable("notification_preferences", {
 export const notificationPreferencesRelations = relations(
   notificationPreferences,
   ({ one }) => ({
-    profile: one(profile, {
-      fields: [notificationPreferences.profileId],
-      references: [profile.id],
+    user: one(user, {
+      fields: [notificationPreferences.userId],
+      references: [user.id],
     }),
   }),
 );
@@ -795,3 +780,58 @@ export const ktruAnalyticsRelations = relations(ktruAnalytics, ({ one }) => ({
     references: [organizations.id],
   }),
 }));
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const userRelations = relations(user, ({ many, one }) => ({
+  organizations: many(organizationMembers),
+  onboarding: one(onboarding),
+}));
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expires_at").notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at"),
+  updatedAt: timestamp("updated_at"),
+});

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
@@ -67,7 +67,7 @@ function OnboardingFlow() {
       {
         onSuccess: () => {
           toast.success("Онбординг завершен!");
-          navigate({ to: "/dashboard" });
+          redirect({ to: "/dashboard" });
         },
       }
     );

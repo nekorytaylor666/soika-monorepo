@@ -1,14 +1,14 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
-import { recommendedLots, recommendedProducts } from "db/schema/schema";
+import { recommendedLots, recommendedProducts } from "db/schema";
 
 export const recommendedLotsRouter = router({
   getResults: publicProcedure
     .input(
       z.object({
         organizationId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const data = await ctx.db.query.recommendedLots.findMany({
@@ -20,7 +20,7 @@ export const recommendedLotsRouter = router({
     .input(
       z.object({
         organizationId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const data = await ctx.db.query.recommendedLots.findMany({
@@ -51,7 +51,7 @@ export const recommendedLotsRouter = router({
       z.object({
         recommendedId: z.string(),
         lotId: z.string(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const data = await ctx.db.query.recommendedLots.findFirst({
@@ -61,7 +61,7 @@ export const recommendedLotsRouter = router({
         return null;
       }
       const lot = data.results.find(
-        (lot) => lot.original_lot.id == input.lotId
+        (lot) => lot.original_lot.id == input.lotId,
       );
       return lot;
     }),

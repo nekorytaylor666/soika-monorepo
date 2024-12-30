@@ -5,7 +5,7 @@ import { H4 } from "@/components/ui/typography";
 import { trpc } from "@/lib/trpc";
 import { getStatusColor, getStatusLabel, getStatusVariant } from "@/lib/utils";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import type { TaskStatus } from "db/schema/schema";
+import type { TaskStatus } from "db/schema";
 import { format } from "date-fns";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";

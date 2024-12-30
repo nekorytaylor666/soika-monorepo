@@ -1,5 +1,5 @@
 import { db } from "db/connection";
-import { samrukContracts, customers, suppliers } from "db/schema/schema";
+import { samrukContracts, customers, suppliers } from "db/schema";
 import { eq } from "drizzle-orm";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { getDocumentProxy, extractText, unPdf } from "unpdf"; // Make sure to import your PDF processing library

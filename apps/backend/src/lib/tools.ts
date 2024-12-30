@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "db/connection";
 import { eq } from "drizzle-orm";
-import { lots } from "db/schema/schema";
+import { lots } from "db/schema";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatNumberWithCommas } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
-import type { Deal } from "db/schema/schema";
+import type { Deal } from "db/schema";
 import { ClockIcon, DollarSign, GripVertical, Package } from "lucide-react";
 import React, { useState } from "react";
 

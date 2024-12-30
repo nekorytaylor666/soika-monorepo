@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { DragDropContext, type DropResult, Droppable } from "@hello-pangea/dnd";
 import { getRouteApi } from "@tanstack/react-router";
-import type { BoardDeal, Status } from "db/schema/schema";
+import type { BoardDeal, Status } from "db/schema";
 import React, { useEffect, useState } from "react";
 import { AddColumnForm } from "../kanbanBoardNew/AddColumnForm";
 import { BoardColumn } from "./BoardColumn";

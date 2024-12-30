@@ -1,7 +1,7 @@
 import { getPriorityLabel, getStatusLabel } from "@/lib/utils";
 
 import { type ColumnDef, sortingFns } from "@tanstack/react-table";
-import type { DealTask, TaskPriority, TaskStatus } from "db/schema/schema";
+import type { DealTask, TaskPriority, TaskStatus } from "db/schema";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react";

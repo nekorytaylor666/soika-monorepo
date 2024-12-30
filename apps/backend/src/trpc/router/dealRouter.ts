@@ -8,7 +8,7 @@ import {
   dealBoard,
   dealTasks,
   deals,
-} from "db/schema/schema";
+} from "db/schema";
 
 export const dealRouter = router({
   getByDealBoardId: publicProcedure
@@ -160,7 +160,7 @@ export const dealRouter = router({
         status: z.enum(["not_started", "in_progress", "completed"]).optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         dueDate: z.date().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...updateData } = input;

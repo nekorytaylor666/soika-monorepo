@@ -3,6 +3,8 @@ import type * as trpcExpress from "@trpc/server/adapters/express";
 import superjson from "superjson";
 import Session from "supertokens-node/recipe/session";
 import { db as dbConnection } from "db/connection";
+import { auth } from "src/lib/auth";
+import { fromNodeHeaders } from "better-auth/node";
 
 export const createContext = async ({
   req,
@@ -22,7 +24,13 @@ type Context = Awaited<ReturnType<typeof createContext>> & {
 
 export const t = initTRPC.context<Context>().create({ transformer: superjson });
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
-  const session = await Session.getSession(ctx.req, ctx.res);
+  const session = await auth.api.getSession({
+    query: {
+      disableCookieCache: true,
+    },
+    headers: fromNodeHeaders(ctx.req.headers), // pass the headers
+  });
+
   if (!session) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
@@ -30,7 +38,7 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   return next({
     ctx: {
       session: {
-        userId: session.getUserId(),
+        userId: session.user.id,
       },
     },
   });

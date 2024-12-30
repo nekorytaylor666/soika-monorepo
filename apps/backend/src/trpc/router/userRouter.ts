@@ -2,16 +2,16 @@ import { eq } from "drizzle-orm";
 import { authenticatedProcedure, router, t } from "..";
 import {
   onboarding,
-  profile,
+  user,
   organizations,
   organizationMembers,
-} from "db/schema/schema";
+} from "db/schema";
 import { z } from "zod";
 
 export const userRouter = router({
   getUser: authenticatedProcedure.query(async ({ ctx }) => {
-    const data = await ctx.db.query.profile.findFirst({
-      where: eq(profile.id, ctx.session.userId),
+    const data = await ctx.db.query.user.findFirst({
+      where: eq(user.id, ctx.session.userId),
       with: {
         organizations: true,
       },
@@ -36,13 +36,13 @@ export const userRouter = router({
         name: z.string(),
         email: z.string(),
         phone: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const data = await ctx.db
-        .update(profile)
+        .update(user)
         .set(input)
-        .where(eq(profile.id, ctx.session.userId));
+        .where(eq(user.id, ctx.session.userId));
       return data;
     }),
 
@@ -52,16 +52,16 @@ export const userRouter = router({
         name: z.string(),
         organizationName: z.string(),
         bin: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       // Start a transaction
       return await ctx.db.transaction(async (tx) => {
         // Update the user's name
         await tx
-          .update(profile)
+          .update(user)
           .set({ name: input.name })
-          .where(eq(profile.id, ctx.session.userId));
+          .where(eq(user.id, ctx.session.userId));
 
         // Create the organization
         const [newOrg] = await tx
@@ -76,7 +76,7 @@ export const userRouter = router({
         // Add the user as a member of the organization
         await tx.insert(organizationMembers).values({
           organizationId: newOrg.id,
-          profileId: ctx.session.userId,
+          userId: ctx.session.userId,
           role: "owner", // Assuming the creator is the owner
         });
 

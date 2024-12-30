@@ -1,14 +1,6 @@
-import { insecureAuthToken } from "electric-sql/auth";
-import { genUUID } from "electric-sql/util";
+import { createAuthClient } from "better-auth/react";
 
-// This is just a demo. In a real app, the user ID would
-// usually come from somewhere else :)
-const dummyUserId = genUUID();
-
-// Generate an insecure authentication JWT.
-// See https://electric-sql.com/docs/usage/auth for more details.
-export const authToken = () => {
-  const claims = { user_id: dummyUserId };
-
-  return insecureAuthToken(claims);
-};
+export const authClient = createAuthClient({
+  baseURL: "http://localhost:3000", // the base url of your auth server
+  fetchOptions: { credentials: "include" },
+});

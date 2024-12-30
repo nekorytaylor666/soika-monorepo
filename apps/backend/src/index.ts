@@ -10,26 +10,51 @@ import { appRouter } from "./trpc/appRouter";
 import { openai } from "@ai-sdk/openai";
 import { convertToCoreMessages, streamText } from "ai";
 import { eq } from "drizzle-orm";
-import { lots } from "db/schema/schema";
+import { lots } from "db/schema";
 import { db } from "db/connection";
 import { createLotTools } from "./lib/tools";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./lib/auth";
 
 const app = express();
 
 supertokens.init(supertokensConfig);
-app.use(express.json());
 
 app.use(
   cors({
-    origin: process.env.WEBSITE_DOMAIN,
-    allowedHeaders: ["content-type", ...supertokens.getAllCORSHeaders()],
-    methods: ["GET", "PUT", "POST", "DELETE"],
-
+    origin: "http://localhost:5173",
+    allowedHeaders: [
+      "content-type",
+      "authorization",
+      "rid",
+      "st-auth-mode",
+      "api-key",
+    ],
     credentials: true,
+    exposedHeaders: ["set-cookie"],
+    methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
   }),
 );
 
-// IMPORTANT: CORS should be before the below line.
+// Enable pre-flight requests for all routes
+app.options(
+  "*",
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+    allowedHeaders: [
+      "content-type",
+      "authorization",
+      "rid",
+      "st-auth-mode",
+      "api-key",
+    ],
+  }),
+);
+
+app.all("/api/auth/*", toNodeHandler(auth));
+
+app.use(express.json());
 app.use(middleware());
 app.use(errorHandler());
 

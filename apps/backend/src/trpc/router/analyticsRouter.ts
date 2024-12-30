@@ -2,7 +2,7 @@ import { z } from "zod";
 import { desc, eq, sql, cosineDistance, asc, gt, lt, and } from "drizzle-orm";
 import { embeddings } from "../../lib/ai";
 import { db } from "db/connection";
-import { ktruCodes, ktruAnalytics, goszakupContracts } from "db/schema/schema";
+import { ktruCodes, ktruAnalytics, goszakupContracts } from "db/schema";
 import { router, publicProcedure } from "..";
 
 interface KtruSearchResult {
