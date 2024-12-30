@@ -30,6 +30,7 @@ import {
   Plus,
   SquareKanban,
   UserCircle,
+  BarChart2,
 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -126,6 +127,25 @@ export function Dashboard() {
                   <ListChecks className="size-6 " />
                   <span className="opacity-0 left-6 absolute  group-hover:inline group-hover:ml-2 group-hover:opacity-100 transition-all duration-200 ease-in-out">
                     Задачи
+                  </span>
+                </div>
+              </Link>
+            </Button>
+            <Button
+              className="w-[36px] group-hover:w-full px-1.5 justify-start font-mono text-muted-foreground"
+              variant="ghost"
+              asChild
+            >
+              <Link
+                to="/dashboard/analytics"
+                activeProps={{
+                  className: "bg-accent text-primary",
+                }}
+              >
+                <div className="flex gap-2 items-center relative">
+                  <BarChart2 className="size-6 " />
+                  <span className="opacity-0 left-6 absolute  group-hover:inline group-hover:ml-2 group-hover:opacity-100 transition-all duration-200 ease-in-out">
+                    Аналитика
                   </span>
                 </div>
               </Link>

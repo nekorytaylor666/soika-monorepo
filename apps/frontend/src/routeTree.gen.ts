@@ -22,14 +22,17 @@ import { Route as DashboardTasksIndexImport } from './routes/dashboard/tasks/ind
 import { Route as DashboardSchedulesIndexImport } from './routes/dashboard/schedules/index'
 import { Route as DashboardLotsIndexImport } from './routes/dashboard/lots/index'
 import { Route as DashboardBoardsIndexImport } from './routes/dashboard/boards/index'
+import { Route as DashboardAnalyticsIndexImport } from './routes/dashboard/analytics/index'
 import { Route as DashboardTasksTaskIdImport } from './routes/dashboard/tasks/$taskId'
 import { Route as DashboardLotsLotIdImport } from './routes/dashboard/lots/$lotId'
 import { Route as DashboardDealsDealIdImport } from './routes/dashboard/deals/$dealId'
 import { Route as DashboardCandidateRecommendedIdImport } from './routes/dashboard/candidate/$recommendedId'
 import { Route as DashboardBoardsBoardIdImport } from './routes/dashboard/boards/$boardId'
 import { Route as DashboardRecommendationsRecommendedIdRouteImport } from './routes/dashboard/recommendations/$recommendedId/route'
+import { Route as DashboardAnalyticsAgentIndexImport } from './routes/dashboard/analytics/agent/index'
 import { Route as DashboardSchedulesResultsResultIdImport } from './routes/dashboard/schedules/results/$resultId'
 import { Route as DashboardRecommendationsRecommendedIdLotIdImport } from './routes/dashboard/recommendations/$recommendedId/$lotId'
+import { Route as DashboardAnalyticsKtruIdImport } from './routes/dashboard/analytics/ktru/$id'
 
 // Create Virtual Routes
 
@@ -120,6 +123,12 @@ const DashboardBoardsIndexRoute = DashboardBoardsIndexImport.update({
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 
+const DashboardAnalyticsIndexRoute = DashboardAnalyticsIndexImport.update({
+  id: '/analytics/',
+  path: '/analytics/',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+
 const DashboardTasksTaskIdRoute = DashboardTasksTaskIdImport.update({
   id: '/tasks/$taskId',
   path: '/tasks/$taskId',
@@ -158,6 +167,13 @@ const DashboardRecommendationsRecommendedIdRouteRoute =
     getParentRoute: () => DashboardRouteRoute,
   } as any)
 
+const DashboardAnalyticsAgentIndexRoute =
+  DashboardAnalyticsAgentIndexImport.update({
+    id: '/analytics/agent/',
+    path: '/analytics/agent/',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
+
 const DashboardSchedulesResultsResultIdRoute =
   DashboardSchedulesResultsResultIdImport.update({
     id: '/schedules/results/$resultId',
@@ -171,6 +187,12 @@ const DashboardRecommendationsRecommendedIdLotIdRoute =
     path: '/$lotId',
     getParentRoute: () => DashboardRecommendationsRecommendedIdRouteRoute,
   } as any)
+
+const DashboardAnalyticsKtruIdRoute = DashboardAnalyticsKtruIdImport.update({
+  id: '/analytics/ktru/$id',
+  path: '/analytics/ktru/$id',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 
 // Populate the FileRoutesByPath interface
 
@@ -281,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTasksTaskIdImport
       parentRoute: typeof DashboardRouteImport
     }
+    '/dashboard/analytics/': {
+      id: '/dashboard/analytics/'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsIndexImport
+      parentRoute: typeof DashboardRouteImport
+    }
     '/dashboard/boards/': {
       id: '/dashboard/boards/'
       path: '/boards'
@@ -309,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTasksIndexImport
       parentRoute: typeof DashboardRouteImport
     }
+    '/dashboard/analytics/ktru/$id': {
+      id: '/dashboard/analytics/ktru/$id'
+      path: '/analytics/ktru/$id'
+      fullPath: '/dashboard/analytics/ktru/$id'
+      preLoaderRoute: typeof DashboardAnalyticsKtruIdImport
+      parentRoute: typeof DashboardRouteImport
+    }
     '/dashboard/recommendations/$recommendedId/$lotId': {
       id: '/dashboard/recommendations/$recommendedId/$lotId'
       path: '/$lotId'
@@ -321,6 +357,13 @@ declare module '@tanstack/react-router' {
       path: '/schedules/results/$resultId'
       fullPath: '/dashboard/schedules/results/$resultId'
       preLoaderRoute: typeof DashboardSchedulesResultsResultIdImport
+      parentRoute: typeof DashboardRouteImport
+    }
+    '/dashboard/analytics/agent/': {
+      id: '/dashboard/analytics/agent/'
+      path: '/analytics/agent'
+      fullPath: '/dashboard/analytics/agent'
+      preLoaderRoute: typeof DashboardAnalyticsAgentIndexImport
       parentRoute: typeof DashboardRouteImport
     }
   }
@@ -351,11 +394,14 @@ interface DashboardRouteRouteChildren {
   DashboardDealsDealIdRoute: typeof DashboardDealsDealIdRoute
   DashboardLotsLotIdRoute: typeof DashboardLotsLotIdRoute
   DashboardTasksTaskIdRoute: typeof DashboardTasksTaskIdRoute
+  DashboardAnalyticsIndexRoute: typeof DashboardAnalyticsIndexRoute
   DashboardBoardsIndexRoute: typeof DashboardBoardsIndexRoute
   DashboardLotsIndexRoute: typeof DashboardLotsIndexRoute
   DashboardSchedulesIndexRoute: typeof DashboardSchedulesIndexRoute
   DashboardTasksIndexRoute: typeof DashboardTasksIndexRoute
+  DashboardAnalyticsKtruIdRoute: typeof DashboardAnalyticsKtruIdRoute
   DashboardSchedulesResultsResultIdRoute: typeof DashboardSchedulesResultsResultIdRoute
+  DashboardAnalyticsAgentIndexRoute: typeof DashboardAnalyticsAgentIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
@@ -367,12 +413,15 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardDealsDealIdRoute: DashboardDealsDealIdRoute,
   DashboardLotsLotIdRoute: DashboardLotsLotIdRoute,
   DashboardTasksTaskIdRoute: DashboardTasksTaskIdRoute,
+  DashboardAnalyticsIndexRoute: DashboardAnalyticsIndexRoute,
   DashboardBoardsIndexRoute: DashboardBoardsIndexRoute,
   DashboardLotsIndexRoute: DashboardLotsIndexRoute,
   DashboardSchedulesIndexRoute: DashboardSchedulesIndexRoute,
   DashboardTasksIndexRoute: DashboardTasksIndexRoute,
+  DashboardAnalyticsKtruIdRoute: DashboardAnalyticsKtruIdRoute,
   DashboardSchedulesResultsResultIdRoute:
     DashboardSchedulesResultsResultIdRoute,
+  DashboardAnalyticsAgentIndexRoute: DashboardAnalyticsAgentIndexRoute,
 }
 
 const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
@@ -395,12 +444,15 @@ export interface FileRoutesByFullPath {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
   '/dashboard/schedules': typeof DashboardSchedulesIndexRoute
   '/dashboard/tasks': typeof DashboardTasksIndexRoute
+  '/dashboard/analytics/ktru/$id': typeof DashboardAnalyticsKtruIdRoute
   '/dashboard/recommendations/$recommendedId/$lotId': typeof DashboardRecommendationsRecommendedIdLotIdRoute
   '/dashboard/schedules/results/$resultId': typeof DashboardSchedulesResultsResultIdRoute
+  '/dashboard/analytics/agent': typeof DashboardAnalyticsAgentIndexRoute
 }
 
 export interface FileRoutesByTo {
@@ -418,12 +470,15 @@ export interface FileRoutesByTo {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
   '/dashboard/schedules': typeof DashboardSchedulesIndexRoute
   '/dashboard/tasks': typeof DashboardTasksIndexRoute
+  '/dashboard/analytics/ktru/$id': typeof DashboardAnalyticsKtruIdRoute
   '/dashboard/recommendations/$recommendedId/$lotId': typeof DashboardRecommendationsRecommendedIdLotIdRoute
   '/dashboard/schedules/results/$resultId': typeof DashboardSchedulesResultsResultIdRoute
+  '/dashboard/analytics/agent': typeof DashboardAnalyticsAgentIndexRoute
 }
 
 export interface FileRoutesById {
@@ -443,12 +498,15 @@ export interface FileRoutesById {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/dashboard/analytics/': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards/': typeof DashboardBoardsIndexRoute
   '/dashboard/lots/': typeof DashboardLotsIndexRoute
   '/dashboard/schedules/': typeof DashboardSchedulesIndexRoute
   '/dashboard/tasks/': typeof DashboardTasksIndexRoute
+  '/dashboard/analytics/ktru/$id': typeof DashboardAnalyticsKtruIdRoute
   '/dashboard/recommendations/$recommendedId/$lotId': typeof DashboardRecommendationsRecommendedIdLotIdRoute
   '/dashboard/schedules/results/$resultId': typeof DashboardSchedulesResultsResultIdRoute
+  '/dashboard/analytics/agent/': typeof DashboardAnalyticsAgentIndexRoute
 }
 
 export interface FileRouteTypes {
@@ -469,12 +527,15 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
     | '/dashboard/schedules'
     | '/dashboard/tasks'
+    | '/dashboard/analytics/ktru/$id'
     | '/dashboard/recommendations/$recommendedId/$lotId'
     | '/dashboard/schedules/results/$resultId'
+    | '/dashboard/analytics/agent'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -491,12 +552,15 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
     | '/dashboard/schedules'
     | '/dashboard/tasks'
+    | '/dashboard/analytics/ktru/$id'
     | '/dashboard/recommendations/$recommendedId/$lotId'
     | '/dashboard/schedules/results/$resultId'
+    | '/dashboard/analytics/agent'
   id:
     | '__root__'
     | '/'
@@ -514,12 +578,15 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/dashboard/analytics/'
     | '/dashboard/boards/'
     | '/dashboard/lots/'
     | '/dashboard/schedules/'
     | '/dashboard/tasks/'
+    | '/dashboard/analytics/ktru/$id'
     | '/dashboard/recommendations/$recommendedId/$lotId'
     | '/dashboard/schedules/results/$resultId'
+    | '/dashboard/analytics/agent/'
   fileRoutesById: FileRoutesById
 }
 
@@ -578,11 +645,14 @@ export const routeTree = rootRoute
         "/dashboard/deals/$dealId",
         "/dashboard/lots/$lotId",
         "/dashboard/tasks/$taskId",
+        "/dashboard/analytics/",
         "/dashboard/boards/",
         "/dashboard/lots/",
         "/dashboard/schedules/",
         "/dashboard/tasks/",
-        "/dashboard/schedules/results/$resultId"
+        "/dashboard/analytics/ktru/$id",
+        "/dashboard/schedules/results/$resultId",
+        "/dashboard/analytics/agent/"
       ]
     },
     "/login": {
@@ -634,6 +704,10 @@ export const routeTree = rootRoute
       "filePath": "dashboard/tasks/$taskId.tsx",
       "parent": "/dashboard"
     },
+    "/dashboard/analytics/": {
+      "filePath": "dashboard/analytics/index.tsx",
+      "parent": "/dashboard"
+    },
     "/dashboard/boards/": {
       "filePath": "dashboard/boards/index.tsx",
       "parent": "/dashboard"
@@ -650,12 +724,20 @@ export const routeTree = rootRoute
       "filePath": "dashboard/tasks/index.tsx",
       "parent": "/dashboard"
     },
+    "/dashboard/analytics/ktru/$id": {
+      "filePath": "dashboard/analytics/ktru/$id.tsx",
+      "parent": "/dashboard"
+    },
     "/dashboard/recommendations/$recommendedId/$lotId": {
       "filePath": "dashboard/recommendations/$recommendedId/$lotId.tsx",
       "parent": "/dashboard/recommendations/$recommendedId"
     },
     "/dashboard/schedules/results/$resultId": {
       "filePath": "dashboard/schedules/results/$resultId.tsx",
+      "parent": "/dashboard"
+    },
+    "/dashboard/analytics/agent/": {
+      "filePath": "dashboard/analytics/agent/index.tsx",
       "parent": "/dashboard"
     }
   }

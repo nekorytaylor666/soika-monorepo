@@ -1,4 +1,5 @@
 import { router } from ".";
+import { analyticsRouter } from "./router/analyticsRouter";
 import { boardRouter } from "./router/boardRouter";
 import { dealRouter } from "./router/dealRouter";
 import { lotRouter } from "./router/lotRouter";
@@ -12,6 +13,7 @@ export const appRouter = router({
   board: boardRouter,
   deal: dealRouter,
   lot: lotRouter,
+  analytics: analyticsRouter,
   recommendedProducts: recommendedProductsRouter,
   recommendedLots: recommendedLotsRouter,
   schedule: scheduleRouter,

@@ -20,7 +20,7 @@ export const Providers = ({ children }: PropsWithChildren) => {
   return (
     <trpc.Provider client={trpcClient} queryClient={trpcQueryClient}>
       <QueryClientProvider client={trpcQueryClient}>
-        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
           <Toaster />
           <RouterProvider router={router} />
         </ThemeProvider>

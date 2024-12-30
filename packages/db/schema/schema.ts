@@ -597,6 +597,19 @@ export const contracts = pgTable("contracts", {
   }),
 });
 
+// Add this new table for KTRU codes (place it before goszakupContracts)
+export const ktruCodes = pgTable("ktru_codes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: text("code").notNull().unique(),
+  nameRu: text("name_ru"),
+  descriptionRu: text("description_ru"),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }),
+});
+
+export type KtruCode = typeof ktruCodes.$inferSelect;
+
 // Goszakup contracts table
 export const goszakupContracts = pgTable("goszakup_contracts", {
   id: text("id"),
@@ -641,14 +654,16 @@ export const goszakupContracts = pgTable("goszakup_contracts", {
   lot: jsonb("lot").$type<{
     id: number;
     nameRu: string;
-    descriptionRu: string;
     ktruCode: string;
+    descriptionRu: string;
   }>(),
   embedding: vector("embedding", {
     dimensions: 1536,
   }),
   contractms: text("contractms"),
   technicalSpecificationText: text("technical_specification_text"),
+  // Add new reference to ktruCodes
+  ktruCodeId: uuid("ktru_code_id").references(() => ktruCodes.id),
 });
 
 // Suppliers table
@@ -695,8 +710,18 @@ export const goszakupContractRelations = relations(
       fields: [goszakupContracts.customerBin],
       references: [customers.bin],
     }),
+    // Add relation to ktruCodes
+    ktruCode: one(ktruCodes, {
+      fields: [goszakupContracts.ktruCodeId],
+      references: [ktruCodes.id],
+    }),
   }),
 );
+
+// Add relations for ktruCodes
+export const ktruCodeRelations = relations(ktruCodes, ({ many }) => ({
+  contracts: many(goszakupContracts),
+}));
 
 // Add this new table for Samruk contracts
 export const samrukContracts = pgTable("samruk_contracts", {
@@ -744,3 +769,29 @@ export const samrukContractRelations = relations(
     }),
   }),
 );
+
+// Add this new table after your existing tables
+export const ktruAnalytics = pgTable("ktru_analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ktruCode: text("ktru_code").notNull(),
+  totalContractSum: doublePrecision("total_contract_sum").notNull().default(0),
+  contractCount: integer("contract_count").notNull().default(0),
+  averageContractSum: doublePrecision("average_contract_sum")
+    .notNull()
+    .default(0),
+  minContractSum: doublePrecision("min_contract_sum"),
+  maxContractSum: doublePrecision("max_contract_sum"),
+  lastUpdated: timestamp("last_updated").default(sql`now()`).notNull(),
+  // You might want to add more analytics fields here
+  organizationId: uuid("organization_id").references(() => organizations.id),
+});
+
+export type KtruAnalytics = typeof ktruAnalytics.$inferSelect;
+
+// Add relations for ktruAnalytics
+export const ktruAnalyticsRelations = relations(ktruAnalytics, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [ktruAnalytics.organizationId],
+    references: [organizations.id],
+  }),
+}));
