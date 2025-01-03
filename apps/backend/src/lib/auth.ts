@@ -6,7 +6,7 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
-  trustedOrigins: ["http://localhost:5173"],
+  trustedOrigins: ["http://localhost:5173", "https://soika-frontend.pages.dev"],
   emailAndPassword: {
     enabled: true,
   },

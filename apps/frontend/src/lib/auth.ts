@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-  baseURL: "http://localhost:3000", // the base url of your auth server
+  baseURL: "https://soika.gefest.agency", // the base url of your auth server
+  // baseURL: "http://localhost:3000",
   fetchOptions: { credentials: "include" },
 });

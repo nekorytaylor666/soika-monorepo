@@ -22,13 +22,14 @@ supertokens.init(supertokensConfig);
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://soika-frontend.pages.dev",
     allowedHeaders: [
       "content-type",
       "authorization",
       "rid",
       "st-auth-mode",
       "api-key",
+      "fdi-version",
     ],
     credentials: true,
     exposedHeaders: ["set-cookie"],
@@ -40,7 +41,7 @@ app.use(
 app.options(
   "*",
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://soika-frontend.pages.dev",
     credentials: true,
     allowedHeaders: [
       "content-type",
@@ -48,6 +49,7 @@ app.options(
       "rid",
       "st-auth-mode",
       "api-key",
+      "fdi-version",
     ],
   }),
 );
