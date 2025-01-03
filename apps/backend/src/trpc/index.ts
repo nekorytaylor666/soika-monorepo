@@ -31,9 +31,9 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
     headers: fromNodeHeaders(ctx.req.headers), // pass the headers
   });
 
-  if (!session) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
+  // if (!session) {
+  //   throw new TRPCError({ code: "UNAUTHORIZED" });
+  // }
 
   return next({
     ctx: {
