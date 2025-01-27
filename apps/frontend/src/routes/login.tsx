@@ -45,16 +45,17 @@ export function LoginForm() {
             setIsLoading(true);
           },
           onSuccess: async () => {
-            const needsOnboardingRes = await fetch(
-              `${import.meta.env.VITE_API_DOMAIN}/trpc/user.isOnboarded`
-            ).then((res) => res.json());
-            const needsOnboarding = needsOnboardingRes.result.data.json;
-            console.log("onboarding", needsOnboarding);
-            if (!needsOnboarding) {
-              navigate({ to: "/onboarding" });
-            } else {
-              navigate({ to: "/dashboard" });
-            }
+            // const needsOnboardingRes = await fetch(
+            //   `${import.meta.env.VITE_API_DOMAIN}/trpc/user.isOnboarded`
+            // ).then((res) => res.json());
+            // const needsOnboarding = needsOnboardingRes.result.data.json;
+            // console.log("onboarding", needsOnboarding);
+            // if (!needsOnboarding) {
+            navigate({ to: "/dashboard" });
+            //   navigate({ to: "/onboarding" });
+            // } else {
+            //   navigate({ to: "/dashboard" });
+            // }
           },
           onError: (ctx) => {
             window.alert(ctx.error.message);

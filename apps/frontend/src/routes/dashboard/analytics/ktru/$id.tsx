@@ -1,13 +1,13 @@
-import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { trpc } from "@/lib/trpc";
+import * as React from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { trpc } from '@/lib/trpc'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card'
 import {
   LineChart,
   Line,
@@ -17,65 +17,65 @@ import {
   Tooltip,
   BarChart,
   Bar,
-} from "recharts";
+} from 'recharts'
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from '@/components/ui/chart'
 
 const chartConfig = {
   contractCount: {
-    label: "Количество контрактов",
-    color: "hsl(var(--chart-1))",
+    label: 'Количество контрактов',
+    color: 'hsl(var(--chart-1))',
   },
   totalSum: {
-    label: "Сумма контрактов",
-    color: "hsl(var(--chart-2))",
+    label: 'Сумма контрактов',
+    color: 'hsl(var(--chart-2))',
   },
   averageLocalShare: {
-    label: "Местное содержание",
-    color: "hsl(var(--chart-3))",
+    label: 'Местное содержание',
+    color: 'hsl(var(--chart-3))',
   },
-} as const;
+} as const
 
-export const Route = createFileRoute("/dashboard/analytics/ktru/$id")({
+export const Route = createFileRoute('/dashboard/analytics/ktru/$id')({
   component: KtruDetailsComponent,
-});
+})
 
 function KtruDetailsComponent() {
-  const { id } = Route.useParams();
+  const { id } = Route.useParams()
   const { data: ktruDetails, isLoading } =
     trpc.analytics.getKtruDetails.useQuery({
       ktruCode: id,
-    });
-  const similaritySearch = trpc.analytics.searchSimilarKtruCodes.useMutation();
+    })
+  const similaritySearch = trpc.analytics.searchSimilarKtruCodes.useMutation()
   const [similarItems, setSimilarItems] = React.useState<
     Array<{
-      id: string;
-      code: string;
-      name: string | null;
-      description: string | null;
-      similarity: number;
+      id: string
+      code: string
+      name: string | null
+      description: string | null
+      similarity: number
     }>
-  >([]);
+  >([])
 
   React.useEffect(() => {
     if (ktruDetails?.name) {
       similaritySearch
         .mutateAsync({ query: ktruDetails.name, limit: 5 })
         .then((results) => {
-          setSimilarItems(results.filter((item) => item.id !== id));
-        });
+          setSimilarItems(results.filter((item) => item.id !== id))
+        })
     }
-  }, [ktruDetails?.name, id]);
+  }, [ktruDetails?.name, id])
 
   if (isLoading) {
-    return <div className="container mx-auto p-4">Загрузка...</div>;
+    return <div className="container mx-auto p-4">Загрузка...</div>
   }
 
   if (!ktruDetails) {
-    return <div>КТРУ код не найден</div>;
+    return <div>КТРУ код не найден</div>
   }
 
   return (
@@ -96,9 +96,9 @@ function KtruDetailsComponent() {
                 className="hover:bg-muted/50 cursor-pointer"
                 onClick={() => {
                   navigate({
-                    to: "/dashboard/analytics/ktru/$id",
+                    to: '/dashboard/analytics/ktru/$id',
                     params: { id: item.id },
-                  });
+                  })
                 }}
               >
                 <CardHeader>
@@ -170,11 +170,11 @@ function KtruDetailsComponent() {
                   axisLine={false}
                   className="text-sm"
                   tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return new Intl.DateTimeFormat("ru", {
-                      month: "short",
-                      year: "2-digit",
-                    }).format(date);
+                    const date = new Date(value)
+                    return new Intl.DateTimeFormat('ru', {
+                      month: 'short',
+                      year: '2-digit',
+                    }).format(date)
                   }}
                 />
                 <YAxis
@@ -227,11 +227,11 @@ function KtruDetailsComponent() {
                   axisLine={false}
                   className="text-sm"
                   tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return new Intl.DateTimeFormat("ru", {
-                      month: "short",
-                      year: "2-digit",
-                    }).format(date);
+                    const date = new Date(value)
+                    return new Intl.DateTimeFormat('ru', {
+                      month: 'short',
+                      year: '2-digit',
+                    }).format(date)
                   }}
                 />
                 <YAxis
@@ -284,8 +284,8 @@ function KtruDetailsComponent() {
                   />
                   <ChartTooltip
                     content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const value = payload[0].value as number;
+                      if (!active || !payload?.length) return null
+                      const value = payload[0].value as number
                       return (
                         <div className="rounded-lg border bg-background p-2 shadow-sm">
                           <div className="grid grid-cols-2 gap-2">
@@ -295,7 +295,7 @@ function KtruDetailsComponent() {
                             <div>{formatCurrency(value)}</div>
                           </div>
                         </div>
-                      );
+                      )
                     }}
                   />
                   <Bar
@@ -337,8 +337,8 @@ function KtruDetailsComponent() {
                   />
                   <ChartTooltip
                     content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const value = payload[0].value as number;
+                      if (!active || !payload?.length) return null
+                      const value = payload[0].value as number
                       return (
                         <div className="rounded-lg border bg-background p-2 shadow-sm">
                           <div className="grid grid-cols-2 gap-2">
@@ -350,7 +350,7 @@ function KtruDetailsComponent() {
                             <div>{value.toFixed(2)}%</div>
                           </div>
                         </div>
-                      );
+                      )
                     }}
                   />
                   <Bar
@@ -365,13 +365,13 @@ function KtruDetailsComponent() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'KZT',
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(amount)
 }

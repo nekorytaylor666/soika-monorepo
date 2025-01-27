@@ -4,6 +4,8 @@ import { embeddings } from "../../lib/ai";
 import { db } from "db/connection";
 import { ktruCodes, ktruAnalytics, goszakupContracts } from "db/schema";
 import { router, publicProcedure } from "..";
+import { generateText } from "ai";
+import { deepseek } from "@ai-sdk/deepseek";
 
 interface KtruSearchResult {
   id: string;
@@ -15,12 +17,52 @@ interface KtruSearchResult {
 
 const SIMILARITY_THRESHOLD = 0.4;
 
+const analyzeKtruRelevance = async (
+  query: string,
+  ktruCodes: KtruSearchResult[],
+) => {
+  const prompt = `Given a user query: "${query}"
+  
+And these KTRU codes:
+${ktruCodes
+  .map(
+    (code) => `- Code: ${code.code}
+  Name: ${code.name}
+  Description: ${code.description}
+  Similarity: ${(code.similarity * 100).toFixed(1)}%`,
+  )
+  .join("\n")}
+
+Analyze which KTRU codes are most relevant to the user's query. Return a JSON object with:
+1. selectedIds: array of IDs of relevant KTRU codes
+2. explanation: brief explanation of why these codes were selected
+
+Only select codes that are truly relevant to the query. Consider both semantic similarity and business logic.`;
+
+  const result = await generateText({
+    model: deepseek("deepseek-coder-33b-instruct"),
+    prompt,
+    temperature: 0.1,
+    maxTokens: 1000,
+  });
+
+  try {
+    return JSON.parse(result);
+  } catch (e) {
+    console.error("Failed to parse AI response:", e);
+    return {
+      selectedIds: ktruCodes.slice(0, 5).map((k) => k.id),
+      explanation: "Fallback: Selected top 5 most similar codes",
+    };
+  }
+};
+
 export const analyticsRouter = router({
   searchSimilarKtruCodes: publicProcedure
     .input(
       z.object({
         query: z.string(),
-        limit: z.number().default(10),
+        limit: z.number().default(50),
       }),
     )
     .mutation(async ({ input }) => {
@@ -44,7 +86,16 @@ export const analyticsRouter = router({
         .orderBy(desc(similarity))
         .limit(input.limit);
 
-      return similarKtruCodes;
+      // Use AI to analyze and select relevant codes
+      const analysis = await analyzeKtruRelevance(
+        input.query,
+        similarKtruCodes,
+      );
+
+      // Filter and return only the selected codes
+      return similarKtruCodes.filter((code) =>
+        analysis.selectedIds.includes(code.id),
+      );
     }),
 
   getKtruCodeStats: publicProcedure

@@ -24,6 +24,8 @@ import { Route as DashboardSchedulesIndexImport } from './routes/dashboard/sched
 import { Route as DashboardLotsIndexImport } from './routes/dashboard/lots/index'
 import { Route as DashboardBoardsIndexImport } from './routes/dashboard/boards/index'
 import { Route as DashboardAnalyticsIndexImport } from './routes/dashboard/analytics/index'
+import { Route as AnalyticsChatIndexImport } from './routes/analytics/chat/index'
+import { Route as AnalyticsAgentIndexImport } from './routes/analytics/agent/index'
 import { Route as DashboardTasksTaskIdImport } from './routes/dashboard/tasks/$taskId'
 import { Route as DashboardLotsLotIdImport } from './routes/dashboard/lots/$lotId'
 import { Route as DashboardDealsDealIdImport } from './routes/dashboard/deals/$dealId'
@@ -134,6 +136,18 @@ const DashboardAnalyticsIndexRoute = DashboardAnalyticsIndexImport.update({
   id: '/analytics/',
   path: '/analytics/',
   getParentRoute: () => DashboardRouteRoute,
+} as any)
+
+const AnalyticsChatIndexRoute = AnalyticsChatIndexImport.update({
+  id: '/analytics/chat/',
+  path: '/analytics/chat/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AnalyticsAgentIndexRoute = AnalyticsAgentIndexImport.update({
+  id: '/analytics/agent/',
+  path: '/analytics/agent/',
+  getParentRoute: () => rootRoute,
 } as any)
 
 const DashboardTasksTaskIdRoute = DashboardTasksTaskIdImport.update({
@@ -317,6 +331,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTasksTaskIdImport
       parentRoute: typeof DashboardRouteImport
     }
+    '/analytics/agent/': {
+      id: '/analytics/agent/'
+      path: '/analytics/agent'
+      fullPath: '/analytics/agent'
+      preLoaderRoute: typeof AnalyticsAgentIndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/analytics/chat/': {
+      id: '/analytics/chat/'
+      path: '/analytics/chat'
+      fullPath: '/analytics/chat'
+      preLoaderRoute: typeof AnalyticsChatIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/dashboard/analytics/': {
       id: '/dashboard/analytics/'
       path: '/analytics'
@@ -459,6 +487,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/analytics/agent': typeof AnalyticsAgentIndexRoute
+  '/analytics/chat': typeof AnalyticsChatIndexRoute
   '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
@@ -486,6 +516,8 @@ export interface FileRoutesByTo {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/analytics/agent': typeof AnalyticsAgentIndexRoute
+  '/analytics/chat': typeof AnalyticsChatIndexRoute
   '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
@@ -515,6 +547,8 @@ export interface FileRoutesById {
   '/dashboard/deals/$dealId': typeof DashboardDealsDealIdRoute
   '/dashboard/lots/$lotId': typeof DashboardLotsLotIdRoute
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
+  '/analytics/agent/': typeof AnalyticsAgentIndexRoute
+  '/analytics/chat/': typeof AnalyticsChatIndexRoute
   '/dashboard/analytics/': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards/': typeof DashboardBoardsIndexRoute
   '/dashboard/lots/': typeof DashboardLotsIndexRoute
@@ -545,6 +579,8 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/analytics/agent'
+    | '/analytics/chat'
     | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
@@ -571,6 +607,8 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/analytics/agent'
+    | '/analytics/chat'
     | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
@@ -598,6 +636,8 @@ export interface FileRouteTypes {
     | '/dashboard/deals/$dealId'
     | '/dashboard/lots/$lotId'
     | '/dashboard/tasks/$taskId'
+    | '/analytics/agent/'
+    | '/analytics/chat/'
     | '/dashboard/analytics/'
     | '/dashboard/boards/'
     | '/dashboard/lots/'
@@ -620,6 +660,8 @@ export interface RootRouteChildren {
   VerifyOtpRoute: typeof VerifyOtpRoute
   AboutLazyRoute: typeof AboutLazyRoute
   KanbanLazyRoute: typeof KanbanLazyRoute
+  AnalyticsAgentIndexRoute: typeof AnalyticsAgentIndexRoute
+  AnalyticsChatIndexRoute: typeof AnalyticsChatIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -632,6 +674,8 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyOtpRoute: VerifyOtpRoute,
   AboutLazyRoute: AboutLazyRoute,
   KanbanLazyRoute: KanbanLazyRoute,
+  AnalyticsAgentIndexRoute: AnalyticsAgentIndexRoute,
+  AnalyticsChatIndexRoute: AnalyticsChatIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -652,7 +696,9 @@ export const routeTree = rootRoute
         "/test",
         "/verifyOtp",
         "/about",
-        "/kanban"
+        "/kanban",
+        "/analytics/agent/",
+        "/analytics/chat/"
       ]
     },
     "/": {
@@ -729,6 +775,12 @@ export const routeTree = rootRoute
     "/dashboard/tasks/$taskId": {
       "filePath": "dashboard/tasks/$taskId.tsx",
       "parent": "/dashboard"
+    },
+    "/analytics/agent/": {
+      "filePath": "analytics/agent/index.tsx"
+    },
+    "/analytics/chat/": {
+      "filePath": "analytics/chat/index.tsx"
     },
     "/dashboard/analytics/": {
       "filePath": "dashboard/analytics/index.tsx",

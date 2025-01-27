@@ -1,132 +1,84 @@
-import * as trpcExpress from "@trpc/server/adapters/express";
-import cors from "cors";
-import express from "express";
-import supertokens from "supertokens-node";
-import { middleware } from "supertokens-node/framework/express";
-import { errorHandler } from "supertokens-node/framework/express";
-import { supertokensConfig } from "./lib/supertokens";
-import { createContext } from "./trpc";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
 import { appRouter } from "./trpc/appRouter";
-import { openai } from "@ai-sdk/openai";
 import { convertToCoreMessages, streamText } from "ai";
-import { eq } from "drizzle-orm";
-import { lots } from "db/schema";
-import { db } from "db/connection";
-import { createLotTools } from "./lib/tools";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth";
+import { deepseek } from "@ai-sdk/deepseek";
+import { chatRouter } from "./chat";
+import { serve } from "@hono/node-server";
+import { trpcServer } from "@hono/trpc-server";
+import type { Env } from "./env";
+import { createContext } from "./trpc";
+import { db as dbConnection } from "db/connection";
+const app = new Hono<Env>();
 
-const app = express();
-
-supertokens.init(supertokensConfig);
-
+// CORS middleware
 app.use(
+  "*", // or replace with "*" to enable cors for all routes
   cors({
-    origin: "https://soika-frontend.pages.dev",
-    allowedHeaders: [
-      "content-type",
-      "authorization",
-      "rid",
-      "st-auth-mode",
-      "api-key",
-      "fdi-version",
-    ],
+    origin: "http://localhost:5173", // replace with your origin
+    allowHeaders: ["Content-Type", "Authorization"],
+    allowMethods: ["POST", "GET", "OPTIONS"],
+    exposeHeaders: ["Content-Length"],
+    maxAge: 600,
     credentials: true,
-    exposedHeaders: ["set-cookie"],
-    methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
   }),
 );
-
-// Enable pre-flight requests for all routes
-app.options(
-  "*",
-  cors({
-    origin: "https://soika-frontend.pages.dev",
-    credentials: true,
-    allowedHeaders: [
-      "content-type",
-      "authorization",
-      "rid",
-      "st-auth-mode",
-      "api-key",
-      "fdi-version",
-    ],
-  }),
-);
-
-app.all("/api/auth/*", toNodeHandler(auth));
-
-app.use(express.json());
-app.use(middleware());
-app.use(errorHandler());
-
-app.post("/generate", async (req, res) => {
-  try {
-    const messages = req.body.messages;
-    const result = await streamText({
-      model: openai("gpt-4o-mini"),
-      messages: convertToCoreMessages(messages),
-    });
-
-    result.pipeDataStreamToResponse(res);
-  } catch (err) {
-    console.log(err);
-    res.send(err);
+// JSON parsing error handling
+app.onError((err, c) => {
+  if (err instanceof SyntaxError) {
+    return c.json(
+      {
+        error: "Invalid JSON payload",
+        details: err.message,
+      },
+      400,
+    );
   }
+  return c.json({ error: err.message }, 500);
 });
 
-app.post("/api/chat", async (req, res) => {
-  try {
-    const { messages, lotId } = req.body;
+// Auth routes
 
-    // Get lot details from database
-    const lot = await db.query.lots.findFirst({
-      where: eq(lots.id, lotId),
-    });
+app.use("*", async (c, next) => {
+  console.log(c.req.raw.headers);
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
-    if (!lot) {
-      return res.status(404).json({ error: "Lot not found" });
-    }
-
-    // Add system message with context
-    const systemMessage = {
-      role: "system",
-      content: `Вы - полезный ИИ-ассистент для анализа деталей тендера в Казахстане. Вот контекст о тендере:
-      Название тендера: ${lot.lotName}
-      Описание: ${lot.lotDescription}
-      Дополнительные детали: ${lot.lotAdditionalDescription}
-      Бюджет: ${lot.budget} тенге
-      Срок поставки: ${lot.deliveryTerm}
-      Места поставки: ${lot.deliveryPlaces}
-      Другая информация: ${JSON.stringify({ ...lot, embedding: [] })}
-      
-      Пожалуйста, помогите пользователям понять требования тендера и предоставьте актуальную информацию.
-      Будьте лаконичны и профессиональны в своих ответах.`,
-    };
-
-    const result = await streamText({
-      model: openai("gpt-4o-mini"),
-      // tools: createLotTools(lotId),
-      // maxSteps: 3,
-      messages: [systemMessage, ...convertToCoreMessages(messages)],
-    });
-
-    result.pipeDataStreamToResponse(res);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+  console.log(session);
+  if (session) {
+    c.set("user", session.user);
+    c.set("session", session.session);
+    console.log("user", c.get("user"));
+    console.log("session", c.get("session"));
+    return next();
   }
+
+  return next();
+});
+
+app.route("/api/chat", chatRouter);
+
+app.on(["POST", "GET"], "/api/auth/**", (c) => {
+  return auth.handler(c.req.raw);
 });
 
 app.use(
-  "/trpc",
-  trpcExpress.createExpressMiddleware({
+  "/trpc/*",
+  trpcServer({
     router: appRouter,
-    // @ts-ignore
-    createContext,
+    createContext: async (opts, c) => {
+      return {
+        db: dbConnection,
+        user: c.get("user"),
+        session: c.get("session"),
+      };
+    },
   }),
 );
 
-app.listen(3000, () => {
-  console.log("Server is running on port 3000");
-});
+export default {
+  port: 3000,
+  fetch: app.fetch,
+};
