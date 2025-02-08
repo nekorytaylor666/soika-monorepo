@@ -18,7 +18,7 @@ const app = new Hono<Env>();
 app.use(
   "*", // or replace with "*" to enable cors for all routes
   cors({
-    origin: "http://localhost:5173", // replace with your origin
+    origin: ["http://localhost:5173", "https://soika-frontend.pages.dev"], // replace with your origin
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
