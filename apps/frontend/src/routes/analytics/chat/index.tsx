@@ -77,6 +77,8 @@ const chartConfig = {
 function ChatComponent() {
   const [query, setQuery] = React.useState("");
   const [shouldGenerateReport, setShouldGenerateReport] = React.useState(false);
+  const [searchResults, setSearchResults] =
+    React.useState<SelectedKtruData | null>(null);
 
   const searchMutation = useMutation<SelectedKtruData, Error, string>({
     mutationFn: async (searchQuery: string) => {
@@ -98,6 +100,38 @@ function ChatComponent() {
     onError: (error) => {
       toast.error("Не удалось найти коды КТРУ");
     },
+    onSuccess: (data) => {
+      setSearchResults(data);
+    },
+  });
+
+  const exactSearchMutation = trpc.analytics.searchExactKtruCode.useMutation({
+    onError: (error) => {
+      toast.error("Не удалось найти код КТРУ");
+    },
+    onSuccess: (response) => {
+      // Handle both direct array response and nested response format
+      const data = Array.isArray(response)
+        ? response
+        : response?.result?.data?.json || [];
+
+      if (data.length === 0) {
+        toast.error("Код КТРУ не найден");
+        return;
+      }
+
+      // Transform the data to match the expected format
+      const transformedData: SelectedKtruData = {
+        selectedKtrus: data.map((ktru) => ({
+          id: ktru.id,
+          name: ktru.name || ktru.nameRu,
+          description: ktru.description || ktru.descriptionRu,
+          code: ktru.code,
+        })),
+      };
+
+      setSearchResults(transformedData);
+    },
   });
 
   const reportMutation =
@@ -112,17 +146,35 @@ function ChatComponent() {
 
   const handleSearch = React.useCallback(() => {
     if (!query.trim()) return;
-    searchMutation.mutate(query);
-  }, [query, searchMutation]);
+
+    // Reset previous search results
+    setSearchResults(null);
+
+    // Check if the query is a KTRU code (supports both XX.XX.XX.XXX-XXXX and XXXXXX.XXX.XXXXXX formats)
+    const ktruCodeRegex =
+      /^(\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{4}|\d{6}\.\d{3}\.\d{6})$/;
+    const numericQuery = query.trim().replace(/\s+/g, "");
+
+    // Also check if it's just a sequence of 6 or more digits that might be a KTRU code
+    const isNumericKtru = /^\d{6,}$/.test(numericQuery);
+
+    if (ktruCodeRegex.test(numericQuery) || isNumericKtru) {
+      exactSearchMutation.mutate({ code: numericQuery });
+    } else {
+      searchMutation.mutate(query);
+    }
+  }, [query, searchMutation, exactSearchMutation]);
 
   const handleGenerateReport = React.useCallback(() => {
-    if (!searchMutation.data?.selectedKtrus.length) return;
-    const ktruIds = searchMutation.data.selectedKtrus.map((ktru) => ktru.id);
+    if (!searchResults?.selectedKtrus.length) return;
+    const ktruIds = searchResults.selectedKtrus.map((ktru) => ktru.id);
     reportMutation.mutate({
       query,
       ktruIds,
     });
-  }, [query, searchMutation.data, reportMutation]);
+  }, [query, searchResults, reportMutation]);
+
+  const isLoading = searchMutation.isLoading || exactSearchMutation.isLoading;
 
   return (
     <div className="container mx-auto py-8">
@@ -152,9 +204,9 @@ function ChatComponent() {
             />
             <Button
               onClick={handleSearch}
-              disabled={searchMutation.isLoading || !query.trim()}
+              disabled={isLoading || !query.trim()}
             >
-              {searchMutation.isLoading ? (
+              {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
                 <Search className="h-4 w-4 mr-2" />
@@ -165,7 +217,7 @@ function ChatComponent() {
         </CardContent>
       </Card>
 
-      {searchMutation.isLoading && (
+      {isLoading && (
         <Card className="mb-8">
           <CardHeader>
             <Skeleton className="h-8 w-48" />
@@ -202,71 +254,67 @@ function ChatComponent() {
         </Card>
       )}
 
-      {!searchMutation.isLoading &&
-        searchMutation.data?.selectedKtrus.length === 0 && (
-          <Card className="mb-8">
-            <CardContent className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Search className="h-8 w-8 mx-auto mb-4 opacity-50" />
-                <p>По вашему запросу ничего не найдено</p>
-                <p className="text-sm mt-1">
-                  Попробуйте изменить условия поиска
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {!isLoading && searchResults?.selectedKtrus.length === 0 && (
+        <Card className="mb-8">
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <Search className="h-8 w-8 mx-auto mb-4 opacity-50" />
+              <p>По вашему запросу ничего не найдено</p>
+              <p className="text-sm mt-1">Попробуйте изменить условия поиска</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {!searchMutation.isLoading &&
-        searchMutation.data?.selectedKtrus.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Найденные коды КТРУ</CardTitle>
-              <CardDescription>
-                Найдено кодов: {searchMutation.data.selectedKtrus.length}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Код</TableHead>
-                      <TableHead>Название</TableHead>
-                      <TableHead>Описание</TableHead>
+      {!isLoading && searchResults?.selectedKtrus.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Найденные коды КТРУ</CardTitle>
+            <CardDescription>
+              Найдено кодов: {searchResults.selectedKtrus.length}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Код</TableHead>
+                    <TableHead>Название</TableHead>
+                    <TableHead>Описание</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {searchResults.selectedKtrus.map((ktru) => (
+                    <TableRow key={ktru.id}>
+                      <TableCell>{ktru.code}</TableCell>
+                      <TableCell>{ktru.name || "—"}</TableCell>
+                      <TableCell className="max-w-md truncate">
+                        {ktru.description || "—"}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchMutation.data.selectedKtrus.map((ktru) => (
-                      <TableRow key={ktru.id}>
-                        <TableCell>{ktru.code}</TableCell>
-                        <TableCell>{ktru.name || "—"}</TableCell>
-                        <TableCell className="max-w-md truncate">
-                          {ktru.description || "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={handleGenerateReport}
-                  disabled={reportMutation.isLoading}
-                >
-                  {reportMutation.isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Генерация отчета...
-                    </>
-                  ) : (
-                    "Сгенерировать отчет"
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleGenerateReport}
+                disabled={reportMutation.isLoading}
+              >
+                {reportMutation.isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Генерация отчета...
+                  </>
+                ) : (
+                  "Сгенерировать отчет"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {reportMutation.isLoading && (
         <>

@@ -98,6 +98,67 @@ export const analyticsRouter = router({
       );
     }),
 
+  searchExactKtruCode: publicProcedure
+    .input(
+      z.object({
+        code: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (!input.code) {
+        return [];
+      }
+
+      // Remove any whitespace from the input
+      const cleanCode = input.code.replace(/\s+/g, "");
+
+      // If the input is just numbers (6 or more digits), use LIKE query
+      if (/^\d{6,}$/.test(cleanCode)) {
+        const exactKtruCode = await db
+          .select({
+            id: ktruCodes.id,
+            code: ktruCodes.code,
+            name: ktruCodes.nameRu,
+            description: ktruCodes.descriptionRu,
+          })
+          .from(ktruCodes)
+          .where(sql`${ktruCodes.code} LIKE ${`%${cleanCode}%`}`)
+          .limit(10);
+
+        return exactKtruCode;
+      }
+
+      // For formatted codes, try exact match first
+      const exactKtruCode = await db
+        .select({
+          id: ktruCodes.id,
+          code: ktruCodes.code,
+          name: ktruCodes.nameRu,
+          description: ktruCodes.descriptionRu,
+        })
+        .from(ktruCodes)
+        .where(eq(ktruCodes.code, cleanCode))
+        .limit(1);
+
+      // If no exact match found, try partial match
+      if (exactKtruCode.length === 0) {
+        const partialMatches = await db
+          .select({
+            id: ktruCodes.id,
+            code: ktruCodes.code,
+            name: ktruCodes.nameRu,
+            description: ktruCodes.descriptionRu,
+          })
+          .from(ktruCodes)
+          .where(sql`${ktruCodes.code} LIKE ${`%${cleanCode}%`}`)
+          .limit(10);
+
+        return partialMatches;
+      }
+
+      return exactKtruCode;
+    }),
+
   getKtruCodeStats: publicProcedure
     .input(
       z.object({

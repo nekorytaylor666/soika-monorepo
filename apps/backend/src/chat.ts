@@ -39,7 +39,7 @@ chatRouter.post("/agent", async (c) => {
       .from(ktruCodes)
       .where(sql`${similarity} >= ${SIMILARITY_THRESHOLD}`)
       .orderBy(desc(similarity))
-      .limit(50);
+      .limit(500);
 
     console.log(similarKtruCodes);
 
