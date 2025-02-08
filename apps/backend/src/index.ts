@@ -16,12 +16,12 @@ const app = new Hono<Env>();
 
 // CORS middleware
 app.use(
-  "*", // or replace with "*" to enable cors for all routes
+  "*",
   cors({
-    origin: "https://soika-frontend.pages.dev", // replace with your origin
-    allowHeaders: ["Content-Type", "Authorization"],
+    origin: "https://soika-frontend.pages.dev",
+    allowHeaders: ["Content-Type", "Authorization", "x-trpc-source"],
     allowMethods: ["POST", "GET", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
+    exposeHeaders: ["Content-Length", "Set-Cookie"],
     maxAge: 600,
     credentials: true,
   }),

@@ -16,7 +16,7 @@ export const useTrpc = () => {
             refetchOnWindowFocus: false,
           },
         },
-      })
+      }),
   );
 
   const [trpcClient] = useState(() =>
@@ -24,11 +24,16 @@ export const useTrpc = () => {
       transformer: superjson,
       links: [
         httpBatchLink({
-          // url: "https://soika.gefest.agency:3000/trpc",
           url: `${import.meta.env.VITE_API_DOMAIN}/trpc`,
+          fetch(url, options) {
+            return fetch(url, {
+              ...options,
+              credentials: "include",
+            });
+          },
         }),
       ],
-    })
+    }),
   );
 
   return {
