@@ -82,13 +82,16 @@ function ChatComponent() {
 
   const searchMutation = useMutation<SelectedKtruData, Error, string>({
     mutationFn: async (searchQuery: string) => {
-      const response = await fetch("http://localhost:3000/api/chat/agent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        body: searchQuery,
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_DOMAIN}/api/chat/agent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+          },
+          body: searchQuery,
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Ошибка поиска");

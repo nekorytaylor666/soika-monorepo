@@ -1,7 +1,6 @@
 import { db } from "db/connection";
 import { samrukContracts, customers, suppliers } from "db/schema";
 import { eq } from "drizzle-orm";
-import { OpenAIEmbeddings } from "@langchain/openai";
 import { getDocumentProxy, extractText, unPdf } from "unpdf"; // Make sure to import your PDF processing library
 import fetch from "node-fetch";
 
@@ -56,11 +55,6 @@ interface ContractDetail {
   }>;
 }
 
-const embedding = new OpenAIEmbeddings({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: "text-embedding-3-small",
-});
-
 const CONCURRENT_LIMIT = 10; // Adjust this number based on your system's capabilities
 
 async function downloadAndParsePdf(fileUid: string): Promise<string> {
@@ -92,108 +86,56 @@ function splitTechSpecLanguages(techSpecText: string) {
     ru: parts[1]?.trim() || "", // Russian part follows
   };
 }
-export async function ingestContractsSamruk() {
-  try {
-    let page = 0;
-    let hasMoreData = true;
 
-    while (hasMoreData) {
-      const contractsList = await withRetry(() => fetchContractsList(page));
-      console.log(`Processing page ${page + 1}`);
-      console.log(`Fetched ${contractsList.length} contracts`);
-
-      if (contractsList.length === 0) {
-        hasMoreData = false;
-        break;
-      }
-
-      // Process contracts in chunks to limit concurrency
-      for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
-        const chunk = contractsList.slice(i, i + CONCURRENT_LIMIT);
-        await Promise.all(
-          chunk.map(async (contract) => {
-            try {
-              console.log(`Processing contract ${contract.id}`);
-              const contractDetail = await withRetry(() =>
-                fetchContractDetail(contract.id),
-              );
-
-              // Process contract items in parallel
-              await Promise.all(
-                contractDetail.contractItems.map(async (item) => {
-                  // Find technical specification document
-                  const techSpec = item.contractItemDocuments?.find(
-                    (doc) => doc.documentCategory === "TECHNICAL_SPECIFICATION",
-                  );
-
-                  // Get technical specification text if available
-                  let techSpecText = "";
-                  if (techSpec?.fileUid) {
-                    try {
-                      techSpecText = await downloadAndParsePdf(
-                        techSpec.fileUid,
-                      );
-                      const techSpecInfo = splitTechSpecLanguages(techSpecText);
-                      techSpecText = techSpecInfo.ru;
-                    } catch (error) {
-                      console.error(
-                        `Error downloading/parsing PDF for contract ${contract.id}:`,
-                        error,
-                      );
-                    }
-                  }
-
-                  const contractData = {
-                    id: String(contract.id),
-                    contractSum: String(contract.sumNds),
-                    supplierBiin: contract.supplier?.identifier,
-                    supplierId: String(contract.supplier?.id),
-                    customerBin: contract.customer?.bin,
-                    contractDate: new Date(contract.contractDateTime),
-                    systemNumber: contract.systemNumber,
-                    contractCardStatus: contract.contractCardStatus,
-                    advertNumber: contract.advertNumber,
-                    nameRu: contract.contractItemsNameRu,
-                    truHistory: item.truHistory,
-                    technicalSpecification: techSpecText,
-                    localContentProjectedShare:
-                      contract.localContentProjectedShare,
-                    // ... rest of your contract data mapping ...
-                  };
-
-                  await db.insert(samrukContracts).values(contractData);
-                }),
-              );
-            } catch (error) {
-              console.error(`Error processing contract ${contract.id}:`, error);
-            }
-          }),
-        );
-      }
-
-      page++;
-    }
-
-    console.log("Finished processing all contracts");
-  } catch (error) {
-    console.error("Error ingesting contracts:", error);
-    throw error;
-  }
+function formatDateToISO(date: Date): string {
+  const formattedDate = `${date.toISOString().split(".")[0]}+05:00`;
+  console.log(formattedDate);
+  return formattedDate;
 }
 
-async function fetchContractsList(page = 0): Promise<ContractListItem[]> {
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+async function fetchContractsList(
+  page: number,
+  dateFrom: Date,
+  dateTo: Date,
+): Promise<ContractListItem[]> {
   const response = await fetch(
     `https://zakup.sk.kz/eprocsearch/api/external/contract-cards/filter?size=100&page=${page}&sort=lastModifiedDate%2Cdesc`,
     {
       method: "POST",
       headers: {
-        accept: "application/json",
+        accept: "application/json, text/plain, */*",
+        "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+        "app-code-name": "Mozilla",
+        "app-name": "Netscape",
         "content-type": "application/json",
+        "e-tag": "MTExOTQzNDMxNTE0NQ==",
         language: "ru",
+        origin: "https://zakup.sk.kz",
+        priority: "u=1, i",
+        "product-sub": "20030107",
+        referer: "https://zakup.sk.kz/",
+        "sec-ch-ua":
+          '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        tor: "TU1URXpNakF3TWpjek56RTNOdz09cw==",
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
       },
       body: JSON.stringify({
         contractCardStatus: "EXECUTED",
         tenderSubjectTypes: "GOODS",
+        contractDateTimeFrom: formatDateToISO(dateFrom),
+        contractDateTimeTo: formatDateToISO(dateTo),
       }),
     },
   );
@@ -204,7 +146,95 @@ async function fetchContractsList(page = 0): Promise<ContractListItem[]> {
     );
   }
 
-  return await response.json();
+  const data = await response.json();
+  return data || [];
+}
+
+export async function ingestContractsSamruk() {
+  try {
+    const startDate = new Date("2021-01-01");
+
+    const endDate = new Date();
+    let currentDate = startDate;
+
+    while (currentDate <= endDate) {
+      const nextDate = addDays(currentDate, 1);
+      console.log(
+        `Processing contracts for date: ${currentDate.toISOString().split("T")[0]}`,
+      );
+
+      let page = 0;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        const contractsList = await withRetry(() =>
+          fetchContractsList(page, currentDate, nextDate),
+        );
+
+        console.log(
+          `Processing page ${page + 1} for date ${currentDate.toISOString().split("T")[0]}`,
+        );
+        console.log(`Fetched ${contractsList.length} contracts`);
+
+        if (contractsList.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        // Process contracts in chunks to limit concurrency
+        for (let i = 0; i < contractsList.length; i += CONCURRENT_LIMIT) {
+          const chunk = contractsList.slice(i, i + CONCURRENT_LIMIT);
+          await Promise.all(
+            chunk.map(async (contract) => {
+              try {
+                console.log(`Processing contract ${contract.id}`);
+                const contractDetail = await withRetry(() =>
+                  fetchContractDetail(contract.id),
+                );
+
+                // Process contract items in parallel
+                await Promise.all(
+                  contractDetail.contractItems.map(async (item) => {
+                    const contractData = {
+                      id: String(contract.id),
+                      contractSum: String(contract.sumNds),
+                      supplierBiin: contract.supplier?.identifier,
+                      supplierId: String(contract.supplier?.id),
+                      customerBin: contract.customer?.bin,
+                      contractDate: new Date(contract.contractDateTime),
+                      systemNumber: contract.systemNumber,
+                      contractCardStatus: contract.contractCardStatus,
+                      advertNumber: contract.advertNumber,
+                      nameRu: contract.contractItemsNameRu,
+                      truHistory: item.truHistory,
+                      technicalSpecification: "",
+                    };
+
+                    await db.insert(samrukContracts).values(contractData);
+                  }),
+                );
+              } catch (error) {
+                console.error(
+                  `Error processing contract ${contract.id}:`,
+                  error,
+                );
+              }
+            }),
+          );
+        }
+
+        page++;
+      }
+
+      // Move to next day
+      currentDate = nextDate;
+    }
+
+    console.log("Finished processing all contracts");
+  } catch (error) {
+    console.error("Error ingesting contracts:", error);
+    throw error;
+  }
 }
 
 async function fetchContractDetail(id: number): Promise<ContractDetail> {
