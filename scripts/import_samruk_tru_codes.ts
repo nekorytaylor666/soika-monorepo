@@ -70,11 +70,7 @@ async function main() {
     for (const code of codesWithoutEmbeddings) {
       try {
         // Prepare text for embedding
-        const textToEmbed = [
-          `Код: ${code.code}`,
-          `Название: ${code.nameRu || ""}`,
-          `Описание: ${code.descriptionRu || ""}`,
-        ].join("\n");
+        const textToEmbed = `${code.nameRu || ""} ${code.descriptionRu || ""}`;
 
         // Generate embedding
         const embedding = await embeddings.embedQuery(textToEmbed);
