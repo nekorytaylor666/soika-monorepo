@@ -5,5 +5,8 @@
     "apps/frontend",
     "apps/core",
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "import:samruk-tru": "tsx scripts/import_samruk_tru_codes.ts"
+  }
 }

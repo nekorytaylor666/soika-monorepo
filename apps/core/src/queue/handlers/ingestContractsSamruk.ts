@@ -152,7 +152,7 @@ async function fetchContractsList(
 
 export async function ingestContractsSamruk() {
   try {
-    const startDate = new Date("2021-01-01");
+    const startDate = new Date("2023-09-16");
 
     const endDate = new Date();
     let currentDate = startDate;
@@ -210,7 +210,13 @@ export async function ingestContractsSamruk() {
                       technicalSpecification: "",
                     };
 
-                    await db.insert(samrukContracts).values(contractData);
+                    await db
+                      .insert(samrukContracts)
+                      .values(contractData)
+                      .onConflictDoUpdate({
+                        target: [samrukContracts.id],
+                        set: contractData,
+                      });
                   }),
                 );
               } catch (error) {

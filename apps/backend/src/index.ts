@@ -18,7 +18,7 @@ const app = new Hono<Env>();
 app.use(
   "*",
   cors({
-    origin: "https://soika-frontend.pages.dev",
+    origin: ["https://soika-frontend.pages.dev", "http://localhost:5173"],
     allowHeaders: ["Content-Type", "Authorization", "x-trpc-source"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     exposeHeaders: ["Content-Length", "Set-Cookie"],

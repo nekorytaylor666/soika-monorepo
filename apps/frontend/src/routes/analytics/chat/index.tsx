@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2, MessagesSquare } from "lucide-react";
+import { Search, Loader2, MessagesSquare, FileBarChart } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart as NewBarChart } from "@/components/ui/bar-chart";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/analytics/chat/")({
   component: ChatComponent,
@@ -53,11 +54,27 @@ const selectedKtruSchema = z.object({
       name: z.string().nullable(),
       description: z.string().nullable(),
       code: z.string(),
+      source: z.string().default("goszakup"),
+    })
+  ),
+});
+
+const selectedSamrukContractsSchema = z.object({
+  selectedContracts: z.array(
+    z.object({
+      id: z.string(),
+      number: z.string().nullable(),
+      description: z.string().nullable(),
+      sum: z.string().nullable(),
+      status: z.string().nullable(),
     })
   ),
 });
 
 type SelectedKtruData = z.infer<typeof selectedKtruSchema>;
+type SelectedSamrukContractsData = z.infer<
+  typeof selectedSamrukContractsSchema
+>;
 
 const chartConfig = {
   contractCount: {
@@ -74,11 +91,17 @@ const chartConfig = {
   },
 } as const;
 
+// Define search modes
+type SearchMode = "ktru" | "samruk";
+
 function ChatComponent() {
   const [query, setQuery] = React.useState("");
   const [shouldGenerateReport, setShouldGenerateReport] = React.useState(false);
   const [searchResults, setSearchResults] =
     React.useState<SelectedKtruData | null>(null);
+  const [samrukSearchResults, setSamrukSearchResults] =
+    React.useState<SelectedSamrukContractsData | null>(null);
+  const [searchMode, setSearchMode] = React.useState<SearchMode>("ktru");
 
   const searchMutation = useMutation<SelectedKtruData, Error, string>({
     mutationFn: async (searchQuery: string) => {
@@ -105,6 +128,41 @@ function ChatComponent() {
     },
     onSuccess: (data) => {
       setSearchResults(data);
+      setSamrukSearchResults(null);
+    },
+  });
+
+  // Add a new mutation for Samruk contract search
+  const samrukSearchMutation = useMutation<
+    SelectedSamrukContractsData,
+    Error,
+    string
+  >({
+    mutationFn: async (searchQuery: string) => {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_DOMAIN}/api/chat/samruk-agent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+          },
+          body: searchQuery,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Ошибка поиска");
+      }
+
+      const data = await response.json();
+      return selectedSamrukContractsSchema.parse(data);
+    },
+    onError: (error) => {
+      toast.error("Не удалось найти контракты Самрук");
+    },
+    onSuccess: (data) => {
+      setSamrukSearchResults(data);
+      setSearchResults(null);
     },
   });
 
@@ -130,12 +188,47 @@ function ChatComponent() {
           name: ktru.name || ktru.nameRu,
           description: ktru.description || ktru.descriptionRu,
           code: ktru.code,
+          source: ktru.source || "goszakup",
         })),
       };
 
       setSearchResults(transformedData);
+      setSamrukSearchResults(null);
     },
   });
+
+  // Add a new mutation for exact Samruk contract search
+  const exactSamrukSearchMutation =
+    trpc.analytics.searchExactSamrukContract.useMutation({
+      onError: (error) => {
+        toast.error("Не удалось найти контракт Самрук");
+      },
+      onSuccess: (response) => {
+        // Handle both direct array response and nested response format
+        const data = Array.isArray(response)
+          ? response
+          : response?.result?.data?.json || [];
+
+        if (data.length === 0) {
+          toast.error("Контракт Самрук не найден");
+          return;
+        }
+
+        // Transform the data to match the expected format
+        const transformedData: SelectedSamrukContractsData = {
+          selectedContracts: data.map((contract) => ({
+            id: contract.id,
+            number: contract.systemNumber || contract.advertNumber,
+            description: contract.descriptionRu,
+            sum: contract.contractSum,
+            status: contract.contractCardStatus,
+          })),
+        };
+
+        setSamrukSearchResults(transformedData);
+        setSearchResults(null);
+      },
+    });
 
   const reportMutation =
     trpc.analytics.getSimilarKtruGroupAnalytics.useMutation({
@@ -147,37 +240,90 @@ function ChatComponent() {
       },
     });
 
+  // Add a new mutation for Samruk contract analytics
+  const samrukReportMutation =
+    trpc.analytics.getSamrukContractAnalytics.useMutation({
+      onError: (error) => {
+        toast.error("Не удалось сгенерировать отчет по контрактам Самрук");
+      },
+      onSuccess: () => {
+        setShouldGenerateReport(true);
+      },
+    });
+
   const handleSearch = React.useCallback(() => {
     if (!query.trim()) return;
 
     // Reset previous search results
     setSearchResults(null);
+    setSamrukSearchResults(null);
 
-    // Check if the query is a KTRU code (supports both XX.XX.XX.XXX-XXXX and XXXXXX.XXX.XXXXXX formats)
-    const ktruCodeRegex =
-      /^(\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{4}|\d{6}\.\d{3}\.\d{6})$/;
-    const numericQuery = query.trim().replace(/\s+/g, "");
+    if (searchMode === "ktru") {
+      // Check if the query is a KTRU code (supports both XX.XX.XX.XXX-XXXX and XXXXXX.XXX.XXXXXX formats)
+      const ktruCodeRegex =
+        /^(\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{4}|\d{6}\.\d{3}\.\d{6})$/;
+      const numericQuery = query.trim().replace(/\s+/g, "");
 
-    // Also check if it's just a sequence of 6 or more digits that might be a KTRU code
-    const isNumericKtru = /^\d{6,}$/.test(numericQuery);
+      // Also check if it's just a sequence of 6 or more digits that might be a KTRU code
+      const isNumericKtru = /^\d{6,}$/.test(numericQuery);
 
-    if (ktruCodeRegex.test(numericQuery) || isNumericKtru) {
-      exactSearchMutation.mutate({ code: numericQuery });
+      if (ktruCodeRegex.test(numericQuery) || isNumericKtru) {
+        exactSearchMutation.mutate({ code: numericQuery });
+      } else {
+        searchMutation.mutate(query);
+      }
     } else {
-      searchMutation.mutate(query);
+      // Samruk search mode
+      // Check if the query looks like a contract number
+      const contractNumberRegex = /^[A-Za-z0-9\-\/]+$/;
+      const cleanQuery = query.trim().replace(/\s+/g, "");
+
+      if (contractNumberRegex.test(cleanQuery)) {
+        exactSamrukSearchMutation.mutate({ number: cleanQuery });
+      } else {
+        samrukSearchMutation.mutate(query);
+      }
     }
-  }, [query, searchMutation, exactSearchMutation]);
+  }, [
+    query,
+    searchMode,
+    searchMutation,
+    exactSearchMutation,
+    samrukSearchMutation,
+    exactSamrukSearchMutation,
+  ]);
 
   const handleGenerateReport = React.useCallback(() => {
-    if (!searchResults?.selectedKtrus.length) return;
-    const ktruIds = searchResults.selectedKtrus.map((ktru) => ktru.id);
-    reportMutation.mutate({
-      query,
-      ktruIds,
-    });
-  }, [query, searchResults, reportMutation]);
+    if (searchMode === "ktru") {
+      if (!searchResults?.selectedKtrus.length) return;
+      const ktruIds = searchResults.selectedKtrus.map((ktru) => ktru.id);
+      reportMutation.mutate({
+        query,
+        ktruIds,
+      });
+    } else {
+      if (!samrukSearchResults?.selectedContracts.length) return;
+      const contractIds = samrukSearchResults.selectedContracts.map(
+        (contract) => contract.id
+      );
+      samrukReportMutation.mutate({
+        contractIds,
+      });
+    }
+  }, [
+    query,
+    searchMode,
+    searchResults,
+    samrukSearchResults,
+    reportMutation,
+    samrukReportMutation,
+  ]);
 
-  const isLoading = searchMutation.isLoading || exactSearchMutation.isLoading;
+  const isLoading =
+    searchMutation.isLoading ||
+    exactSearchMutation.isLoading ||
+    samrukSearchMutation.isLoading ||
+    exactSamrukSearchMutation.isLoading;
 
   return (
     <div className="container mx-auto py-8">
@@ -185,37 +331,59 @@ function ChatComponent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessagesSquare className="h-5 w-5" />
-            Поиск кодов КТРУ
+            {searchMode === "ktru"
+              ? "Поиск кодов КТРУ"
+              : "Поиск контрактов Самрук"}
           </CardTitle>
           <CardDescription>
-            Введите ваш запрос для поиска соответствующих кодов КТРУ. ИИ
-            проанализирует ваш запрос и найдет наиболее подходящие коды.
+            {searchMode === "ktru"
+              ? "Введите ваш запрос для поиска соответствующих кодов КТРУ. ИИ проанализирует ваш запрос и найдет наиболее подходящие коды."
+              : "Введите ваш запрос для поиска соответствующих контрактов Самрук. ИИ проанализирует ваш запрос и найдет наиболее подходящие контракты."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Введите поисковый запрос..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-end">
+              <Tabs
+                defaultValue="ktru"
+                value={searchMode}
+                onValueChange={(value) => setSearchMode(value as SearchMode)}
+                className="w-[400px]"
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="ktru">Коды КТРУ</TabsTrigger>
+                  <TabsTrigger value="samruk">Контракты Самрук</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder={
+                  searchMode === "ktru"
+                    ? "Введите поисковый запрос или код КТРУ..."
+                    : "Введите поисковый запрос или номер контракта..."
                 }
-              }}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSearch}
-              disabled={isLoading || !query.trim()}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Search className="h-4 w-4 mr-2" />
-              )}
-              Поиск
-            </Button>
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSearch();
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSearch}
+                disabled={isLoading || !query.trim()}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Поиск
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -231,14 +399,26 @@ function ChatComponent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Код</TableHead>
-                    <TableHead>Название</TableHead>
-                    <TableHead>Описание</TableHead>
+                    {searchMode === "ktru" ? (
+                      <>
+                        <TableHead>Код</TableHead>
+                        <TableHead>Название</TableHead>
+                        <TableHead>Описание</TableHead>
+                        <TableHead>Источник</TableHead>
+                      </>
+                    ) : (
+                      <>
+                        <TableHead>Номер</TableHead>
+                        <TableHead>Описание</TableHead>
+                        <TableHead>Сумма</TableHead>
+                        <TableHead>Статус</TableHead>
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <TableRow key={i}>
+                    <TableRow key={`skeleton-${i}`}>
                       <TableCell>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -248,6 +428,15 @@ function ChatComponent() {
                       <TableCell>
                         <Skeleton className="h-4 w-96" />
                       </TableCell>
+                      {searchMode === "ktru" ? (
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                      ) : (
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -257,67 +446,96 @@ function ChatComponent() {
         </Card>
       )}
 
-      {!isLoading && searchResults?.selectedKtrus.length === 0 && (
-        <Card className="mb-8">
-          <CardContent className="py-8">
-            <div className="text-center text-muted-foreground">
-              <Search className="h-8 w-8 mx-auto mb-4 opacity-50" />
-              <p>По вашему запросу ничего не найдено</p>
-              <p className="text-sm mt-1">Попробуйте изменить условия поиска</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoading && searchResults?.selectedKtrus.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Найденные коды КТРУ</CardTitle>
-            <CardDescription>
-              Найдено кодов: {searchResults.selectedKtrus.length}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Код</TableHead>
-                    <TableHead>Название</TableHead>
-                    <TableHead>Описание</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {searchResults.selectedKtrus.map((ktru) => (
-                    <TableRow key={ktru.id}>
-                      <TableCell>{ktru.code}</TableCell>
-                      <TableCell>{ktru.name || "—"}</TableCell>
-                      <TableCell className="max-w-md truncate">
-                        {ktru.description || "—"}
-                      </TableCell>
+      {!isLoading &&
+        searchMode === "ktru" &&
+        searchResults?.selectedKtrus.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Найденные коды КТРУ</CardTitle>
+              <CardDescription>
+                Найдено кодов: {searchResults.selectedKtrus.length}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Код</TableHead>
+                      <TableHead>Название</TableHead>
+                      <TableHead>Описание</TableHead>
+                      <TableHead>Источник</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Button
-                onClick={handleGenerateReport}
-                disabled={reportMutation.isLoading}
-              >
-                {reportMutation.isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Генерация отчета...
-                  </>
-                ) : (
-                  "Сгенерировать отчет"
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  </TableHeader>
+                  <TableBody>
+                    {searchResults.selectedKtrus.map((ktru) => (
+                      <TableRow key={ktru.id}>
+                        <TableCell>{ktru.code}</TableCell>
+                        <TableCell>{ktru.name || "—"}</TableCell>
+                        <TableCell>{ktru.description || "—"}</TableCell>
+                        <TableCell>
+                          {ktru.source === "samruk" ? "Самрук" : "Госзакуп"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={handleGenerateReport}>
+                  <FileBarChart className="h-4 w-4 mr-2" />
+                  Сгенерировать отчет
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+      {!isLoading &&
+        searchMode === "samruk" &&
+        samrukSearchResults?.selectedContracts.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Найденные контракты Самрук</CardTitle>
+              <CardDescription>
+                Найдено контрактов:{" "}
+                {samrukSearchResults.selectedContracts.length}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Номер</TableHead>
+                      <TableHead>Описание</TableHead>
+                      <TableHead>Сумма</TableHead>
+                      <TableHead>Статус</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {samrukSearchResults.selectedContracts.map((contract) => (
+                      <TableRow key={contract.id}>
+                        <TableCell>{contract.number || "—"}</TableCell>
+                        <TableCell>{contract.description || "—"}</TableCell>
+                        <TableCell>
+                          {formatCurrency(parseFloat(contract.sum || "0"))}
+                        </TableCell>
+                        <TableCell>{contract.status || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={handleGenerateReport}>
+                  <FileBarChart className="h-4 w-4 mr-2" />
+                  Сгенерировать отчет
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {reportMutation.isLoading && (
         <>
@@ -862,3 +1080,5 @@ function formatCurrency(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+export { ChatComponent as Component };

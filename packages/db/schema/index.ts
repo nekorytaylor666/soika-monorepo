@@ -588,6 +588,7 @@ export const ktruCodes = pgTable("ktru_codes", {
   code: text("code").notNull().unique(),
   nameRu: text("name_ru"),
   descriptionRu: text("description_ru"),
+  source: text("source").default("goszakup"),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   embedding: vector("embedding", { dimensions: 1536 }),
