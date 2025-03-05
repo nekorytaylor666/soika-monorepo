@@ -739,6 +739,7 @@ export const samrukContracts = pgTable("samruk_contracts", {
   embedding: vector("embedding", {
     dimensions: 1536,
   }),
+  ktruCodeId: uuid("ktru_code_id").references(() => ktruCodes.id),
 });
 
 // Add relations for samrukContracts
@@ -752,6 +753,10 @@ export const samrukContractRelations = relations(
     customer: one(customers, {
       fields: [samrukContracts.customerBin],
       references: [customers.bin],
+    }),
+    ktruCode: one(ktruCodes, {
+      fields: [samrukContracts.ktruCodeId],
+      references: [ktruCodes.id],
     }),
   }),
 );

@@ -43,10 +43,8 @@ app.onError((err, c) => {
 // Auth routes
 
 app.use("*", async (c, next) => {
-  console.log(c.req.raw.headers);
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
-  console.log(session);
   if (session) {
     c.set("user", session.user);
     c.set("session", session.session);

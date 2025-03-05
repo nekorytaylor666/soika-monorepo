@@ -42,6 +42,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart as NewBarChart } from "@/components/ui/bar-chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/analytics/chat/")({
   component: ChatComponent,
@@ -78,11 +85,11 @@ type SelectedSamrukContractsData = z.infer<
 
 const chartConfig = {
   contractCount: {
-    label: "Количество контрактов",
+    label: "Количество договоров",
     color: "hsl(var(--chart-1))",
   },
   totalSum: {
-    label: "Сумма контрактов",
+    label: "Сумма договоров",
     color: "hsl(var(--chart-2))",
   },
   averageLocalShare: {
@@ -94,6 +101,9 @@ const chartConfig = {
 // Define search modes
 type SearchMode = "ktru" | "samruk";
 
+// Define source filter options
+type SourceFilter = "all" | "goszakup" | "samruk";
+
 function ChatComponent() {
   const [query, setQuery] = React.useState("");
   const [shouldGenerateReport, setShouldGenerateReport] = React.useState(false);
@@ -102,6 +112,7 @@ function ChatComponent() {
   const [samrukSearchResults, setSamrukSearchResults] =
     React.useState<SelectedSamrukContractsData | null>(null);
   const [searchMode, setSearchMode] = React.useState<SearchMode>("ktru");
+  const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all");
 
   const searchMutation = useMutation<SelectedKtruData, Error, string>({
     mutationFn: async (searchQuery: string) => {
@@ -110,9 +121,12 @@ function ChatComponent() {
         {
           method: "POST",
           headers: {
-            "Content-Type": "text/plain",
+            "Content-Type": "application/json",
           },
-          body: searchQuery,
+          body: JSON.stringify({
+            query: searchQuery,
+            source: sourceFilter === "all" ? undefined : sourceFilter,
+          }),
         }
       );
 
@@ -120,11 +134,10 @@ function ChatComponent() {
         throw new Error("Ошибка поиска");
       }
 
-      const data = await response.json();
-      return selectedKtruSchema.parse(data);
+      return response.json();
     },
     onError: (error) => {
-      toast.error("Не удалось найти коды КТРУ");
+      toast.error("Не удалось найти коды ТРУ");
     },
     onSuccess: (data) => {
       setSearchResults(data);
@@ -158,7 +171,7 @@ function ChatComponent() {
       return selectedSamrukContractsSchema.parse(data);
     },
     onError: (error) => {
-      toast.error("Не удалось найти контракты Самрук");
+      toast.error("Не удалось найти договора Самрук");
     },
     onSuccess: (data) => {
       setSamrukSearchResults(data);
@@ -168,7 +181,7 @@ function ChatComponent() {
 
   const exactSearchMutation = trpc.analytics.searchExactKtruCode.useMutation({
     onError: (error) => {
-      toast.error("Не удалось найти код КТРУ");
+      toast.error("Не удалось найти код ТРУ");
     },
     onSuccess: (response) => {
       // Handle both direct array response and nested response format
@@ -177,7 +190,7 @@ function ChatComponent() {
         : response?.result?.data?.json || [];
 
       if (data.length === 0) {
-        toast.error("Код КТРУ не найден");
+        toast.error("Код ТРУ не найден");
         return;
       }
 
@@ -201,7 +214,7 @@ function ChatComponent() {
   const exactSamrukSearchMutation =
     trpc.analytics.searchExactSamrukContract.useMutation({
       onError: (error) => {
-        toast.error("Не удалось найти контракт Самрук");
+        toast.error("Не удалось найти договор Самрук");
       },
       onSuccess: (response) => {
         // Handle both direct array response and nested response format
@@ -210,7 +223,7 @@ function ChatComponent() {
           : response?.result?.data?.json || [];
 
         if (data.length === 0) {
-          toast.error("Контракт Самрук не найден");
+          toast.error("Договор Самрук не найден");
           return;
         }
 
@@ -244,54 +257,57 @@ function ChatComponent() {
   const samrukReportMutation =
     trpc.analytics.getSamrukContractAnalytics.useMutation({
       onError: (error) => {
-        toast.error("Не удалось сгенерировать отчет по контрактам Самрук");
+        toast.error("Не удалось сгенерировать отчет по договорам Самрук");
       },
       onSuccess: () => {
         setShouldGenerateReport(true);
       },
     });
 
-  const handleSearch = React.useCallback(() => {
+  const handleSearch = () => {
     if (!query.trim()) return;
 
-    // Reset previous search results
-    setSearchResults(null);
-    setSamrukSearchResults(null);
-
     if (searchMode === "ktru") {
-      // Check if the query is a KTRU code (supports both XX.XX.XX.XXX-XXXX and XXXXXX.XXX.XXXXXX formats)
-      const ktruCodeRegex =
-        /^(\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{4}|\d{6}\.\d{3}\.\d{6})$/;
-      const numericQuery = query.trim().replace(/\s+/g, "");
+      // Check if the query looks like a KTRU code
+      const isKtruCode = /^\d{2}(\.\d+)*$/.test(query.trim());
 
-      // Also check if it's just a sequence of 6 or more digits that might be a KTRU code
-      const isNumericKtru = /^\d{6,}$/.test(numericQuery);
-
-      if (ktruCodeRegex.test(numericQuery) || isNumericKtru) {
-        exactSearchMutation.mutate({ code: numericQuery });
+      if (isKtruCode) {
+        exactSearchMutation.mutate({
+          code: query.trim(),
+          source: sourceFilter === "all" ? undefined : sourceFilter,
+        });
       } else {
-        searchMutation.mutate(query);
+        // Use semantic search for non-code queries
+        searchMutation.mutate(query.trim());
       }
-    } else {
-      // Samruk search mode
+    } else if (searchMode === "samruk") {
       // Check if the query looks like a contract number
-      const contractNumberRegex = /^[A-Za-z0-9\-\/]+$/;
-      const cleanQuery = query.trim().replace(/\s+/g, "");
+      const isContractNumber = /^[\d-]+$/.test(query.trim());
 
-      if (contractNumberRegex.test(cleanQuery)) {
-        exactSamrukSearchMutation.mutate({ number: cleanQuery });
+      if (isContractNumber) {
+        exactSamrukSearchMutation.mutate({
+          number: query.trim(),
+        });
       } else {
-        samrukSearchMutation.mutate(query);
+        // Use semantic search for non-number queries
+        samrukSearchMutation.mutate(
+          {
+            query: query.trim(),
+            limit: 10,
+          },
+          {
+            onSuccess: (data) => {
+              setSamrukSearchResults(data);
+              setSearchResults(null);
+            },
+            onError: () => {
+              toast.error("Ошибка при поиске договоров Самрук");
+            },
+          }
+        );
       }
     }
-  }, [
-    query,
-    searchMode,
-    searchMutation,
-    exactSearchMutation,
-    samrukSearchMutation,
-    exactSamrukSearchMutation,
-  ]);
+  };
 
   const handleGenerateReport = React.useCallback(() => {
     if (searchMode === "ktru") {
@@ -332,36 +348,42 @@ function ChatComponent() {
           <CardTitle className="flex items-center gap-2">
             <MessagesSquare className="h-5 w-5" />
             {searchMode === "ktru"
-              ? "Поиск кодов КТРУ"
-              : "Поиск контрактов Самрук"}
+              ? "Поиск кодов ТРУ"
+              : "Поиск договоров Самрук"}
           </CardTitle>
           <CardDescription>
             {searchMode === "ktru"
-              ? "Введите ваш запрос для поиска соответствующих кодов КТРУ. ИИ проанализирует ваш запрос и найдет наиболее подходящие коды."
-              : "Введите ваш запрос для поиска соответствующих контрактов Самрук. ИИ проанализирует ваш запрос и найдет наиболее подходящие контракты."}
+              ? "Введите ваш запрос для поиска соответствующих кодов ТРУ. ИИ проанализирует ваш запрос и найдет наиболее подходящие коды."
+              : "Введите ваш запрос для поиска соответствующих договоров Самрук. ИИ проанализирует ваш запрос и найдет наиболее подходящие договора."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-              <Tabs
-                defaultValue="ktru"
-                value={searchMode}
-                onValueChange={(value) => setSearchMode(value as SearchMode)}
-                className="w-[400px]"
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="ktru">Коды КТРУ</TabsTrigger>
-                  <TabsTrigger value="samruk">Контракты Самрук</TabsTrigger>
-                </TabsList>
-              </Tabs>
+            <div className="flex justify-between items-center mb-4">
+              {searchMode === "ktru" && (
+                <Select
+                  value={sourceFilter}
+                  onValueChange={(value) =>
+                    setSourceFilter(value as SourceFilter)
+                  }
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Источник" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все источники</SelectItem>
+                    <SelectItem value="goszakup">Госзакуп</SelectItem>
+                    <SelectItem value="samruk">Самрук</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="flex gap-2">
               <Input
                 placeholder={
                   searchMode === "ktru"
-                    ? "Введите поисковый запрос или код КТРУ..."
-                    : "Введите поисковый запрос или номер контракта..."
+                    ? "Введите поисковый запрос или код ТРУ..."
+                    : "Введите поисковый запрос или номер договора..."
                 }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -418,7 +440,7 @@ function ChatComponent() {
                 </TableHeader>
                 <TableBody>
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
+                    <TableRow key={`skeleton-row-${i}`}>
                       <TableCell>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -448,10 +470,11 @@ function ChatComponent() {
 
       {!isLoading &&
         searchMode === "ktru" &&
-        searchResults?.selectedKtrus.length > 0 && (
+        searchResults?.selectedKtrus &&
+        searchResults.selectedKtrus.length > 0 && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Найденные коды КТРУ</CardTitle>
+              <CardTitle>Найденные коды ТРУ</CardTitle>
               <CardDescription>
                 Найдено кодов: {searchResults.selectedKtrus.length}
               </CardDescription>
@@ -493,12 +516,13 @@ function ChatComponent() {
 
       {!isLoading &&
         searchMode === "samruk" &&
-        samrukSearchResults?.selectedContracts.length > 0 && (
+        samrukSearchResults?.selectedContracts &&
+        samrukSearchResults.selectedContracts.length > 0 && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Найденные контракты Самрук</CardTitle>
+              <CardTitle>Найденные договора Самрук</CardTitle>
               <CardDescription>
-                Найдено контрактов:{" "}
+                Найдено договоров:{" "}
                 {samrukSearchResults.selectedContracts.length}
               </CardDescription>
             </CardHeader>
@@ -541,7 +565,7 @@ function ChatComponent() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 w-full">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Card key={i}>
+              <Card key={`skeleton-card-${i}`}>
                 <CardHeader>
                   <Skeleton className="h-5 w-32" />
                 </CardHeader>
@@ -571,7 +595,7 @@ function ChatComponent() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 w-full">
             <Card>
               <CardHeader>
-                <CardTitle>Выбрано КТРУ кодов</CardTitle>
+                <CardTitle>Выбрано ТРУ кодов</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
@@ -582,7 +606,7 @@ function ChatComponent() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Общая сумма контрактов</CardTitle>
+                <CardTitle>Общая сумма договоров</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
@@ -606,7 +630,7 @@ function ChatComponent() {
           <div className="mb-8 w-full">
             <Card className="w-full">
               <CardHeader>
-                <CardTitle>Динамика контрактов группы</CardTitle>
+                <CardTitle>Динамика договоров группы</CardTitle>
                 <CardDescription>Количество и сумма по месяцам</CardDescription>
               </CardHeader>
               <CardContent>
@@ -618,8 +642,8 @@ function ChatComponent() {
                           month: "short",
                           year: "2-digit",
                         }).format(new Date(stat.month)),
-                        "Количество контрактов": stat.contractCount,
-                        "Сумма контрактов (тг)": stat.totalSum,
+                        "Количество договоров": stat.contractCount,
+                        "Сумма договоров (тг)": stat.totalSum,
                       }))}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                     >
@@ -660,7 +684,7 @@ function ChatComponent() {
                                 </div>
                                 {payload.map((p, i) => (
                                   <div
-                                    key={i}
+                                    key={`tooltip-item-${p.name}-${i}`}
                                     className="flex items-center justify-between gap-2"
                                   >
                                     <div className="flex items-center gap-2">
@@ -673,8 +697,8 @@ function ChatComponent() {
                                       </span>
                                     </div>
                                     <span className="font-medium">
-                                      {p.name === "Сумма контрактов (тг)"
-                                        ? formatCurrency(p.value)
+                                      {p.name === "Сумма договоров (тг)"
+                                        ? formatCurrency(p.value as number)
                                         : p.value}
                                     </span>
                                   </div>
@@ -696,15 +720,15 @@ function ChatComponent() {
                       />
                       <Bar
                         yAxisId="left"
-                        dataKey="Количество контрактов"
-                        name="Количество контрактов"
+                        dataKey="Количество договоров"
+                        name="Количество договоров"
                         fill="hsl(var(--primary))"
                         radius={[4, 4, 0, 0]}
                       />
                       <Bar
                         yAxisId="right"
-                        dataKey="Сумма контрактов (тг)"
-                        name="Сумма контрактов"
+                        dataKey="Сумма договоров (тг)"
+                        name="Сумма договоров"
                         fill="hsl(var(--secondary))"
                         radius={[4, 4, 0, 0]}
                       />
@@ -767,8 +791,8 @@ function ChatComponent() {
           <div className="mb-8 w-full">
             <Card className="w-full">
               <CardHeader>
-                <CardTitle>Сумма контрактов по годам</CardTitle>
-                <CardDescription>Общая сумма контрактов за год</CardDescription>
+                <CardTitle>Сумма договоров по годам</CardTitle>
+                <CardDescription>Общая сумма договоров за год</CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer
@@ -881,15 +905,15 @@ function ChatComponent() {
 
           <div className="mb-8 w-full">
             <h2 className="text-xl font-bold mb-4">
-              Распределение по КТРУ кодам
+              Распределение по ТРУ кодам
             </h2>
 
             <div className="mb-8 w-full">
               <Card className="w-full">
                 <CardHeader>
-                  <CardTitle>Топ КТРУ по количеству контрактов</CardTitle>
+                  <CardTitle>Топ ТРУ по количеству контрактов</CardTitle>
                   <CardDescription>
-                    Распределение контрактов по кодам КТРУ
+                    Распределение контрактов по кодам ТРУ
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -977,9 +1001,9 @@ function ChatComponent() {
             <div className="mb-8 w-full">
               <Card className="w-full">
                 <CardHeader>
-                  <CardTitle>Топ КТРУ по сумме контрактов</CardTitle>
+                  <CardTitle>Топ ТРУ по сумме контрактов</CardTitle>
                   <CardDescription>
-                    Распределение сумм контрактов по кодам КТРУ
+                    Распределение сумм контрактов по кодам ТРУ
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

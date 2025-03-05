@@ -1,16 +1,28 @@
 import { z } from "zod";
-import { desc, eq, sql, cosineDistance, asc, gt, lt, and } from "drizzle-orm";
+import {
+  desc,
+  eq,
+  sql,
+  cosineDistance,
+  asc,
+  gt,
+  lt,
+  and,
+  inArray,
+} from "drizzle-orm";
 import { embeddings } from "../../lib/ai";
 import { db } from "db/connection";
 import {
   ktruCodes,
   ktruAnalytics,
   goszakupContracts,
+  samrukContracts as samrukContractsTable,
   samrukContracts,
 } from "db/schema";
 import { router, publicProcedure } from "..";
 import { generateText } from "ai";
 import { deepseek } from "@ai-sdk/deepseek";
+import { openai } from "@ai-sdk/openai";
 
 interface KtruSearchResult {
   id: string;
@@ -56,7 +68,7 @@ Analyze which KTRU codes are most relevant to the user's query. Return a JSON ob
 Only select codes that are truly relevant to the query. Consider both semantic similarity and business logic.`;
 
   const result = await generateText({
-    model: deepseek("deepseek-coder-33b-instruct"),
+    model: openai("gpt-4o-mini"),
     prompt,
     temperature: 0.1,
     maxTokens: 1000,
@@ -100,7 +112,7 @@ Analyze which Samruk contracts are most relevant to the user's query. Return a J
 Only select contracts that are truly relevant to the query. Consider both semantic similarity and business logic.`;
 
   const result = await generateText({
-    model: deepseek("deepseek-coder-33b-instruct"),
+    model: openai("gpt-4o-mini"),
     prompt,
     temperature: 0.1,
     maxTokens: 1000,
@@ -120,22 +132,24 @@ Only select contracts that are truly relevant to the query. Consider both semant
 };
 
 export const analyticsRouter = router({
-  searchSimilarKtruCodes: publicProcedure
+  searchKtruCodes: publicProcedure
     .input(
       z.object({
         query: z.string(),
-        limit: z.number().default(50),
+        limit: z.number().default(10),
+        source: z.enum(["goszakup", "samruk"]).optional(),
       }),
     )
     .mutation(async ({ input }) => {
       if (!input.query) {
-        return [];
+        return { selectedKtrus: [] };
       }
 
       const embedding = await embeddings.embedQuery(input.query);
       const similarity = sql<number>`1 - (${cosineDistance(ktruCodes.embedding, embedding)})`;
 
-      const similarKtruCodes = await db
+      // Build the query with optional source filter
+      let query = db
         .select({
           id: ktruCodes.id,
           code: ktruCodes.code,
@@ -145,20 +159,36 @@ export const analyticsRouter = router({
           similarity,
         })
         .from(ktruCodes)
-        .where(sql`${similarity} >= ${SIMILARITY_THRESHOLD}`)
+        .where(sql`${similarity} >= ${SIMILARITY_THRESHOLD}`);
+
+      // Add source filter if specified
+      if (input.source) {
+        query = query.where(eq(ktruCodes.source, input.source));
+      }
+
+      const similarKtruCodes = await query
         .orderBy(desc(similarity))
         .limit(input.limit);
 
-      // Use AI to analyze and select relevant codes
-      const analysis = await analyzeKtruRelevance(
+      if (similarKtruCodes.length === 0) {
+        return { selectedKtrus: [] };
+      }
+
+      // Analyze relevance
+      const relevantKtruCodes = await analyzeKtruRelevance(
         input.query,
         similarKtruCodes,
       );
 
-      // Filter and return only the selected codes
-      return similarKtruCodes.filter((code) =>
-        analysis.selectedIds.includes(code.id),
-      );
+      return {
+        selectedKtrus: relevantKtruCodes.map((ktru) => ({
+          id: ktru.id,
+          name: ktru.nameRu,
+          description: ktru.descriptionRu,
+          code: ktru.code,
+          source: ktru.source || "goszakup",
+        })),
+      };
     }),
 
   // New procedure for searching similar Samruk contracts
@@ -175,19 +205,19 @@ export const analyticsRouter = router({
       }
 
       const embedding = await embeddings.embedQuery(input.query);
-      const similarity = sql<number>`1 - (${cosineDistance(samrukContracts.embedding, embedding)})`;
+      const similarity = sql<number>`1 - (${cosineDistance(samrukContractsTable.embedding, embedding)})`;
 
       const similarSamrukContracts = await db
         .select({
-          id: samrukContracts.id,
-          systemNumber: samrukContracts.systemNumber,
-          advertNumber: samrukContracts.advertNumber,
-          descriptionRu: samrukContracts.descriptionRu,
-          contractSum: samrukContracts.contractSum,
-          contractCardStatus: samrukContracts.contractCardStatus,
+          id: samrukContractsTable.id,
+          systemNumber: samrukContractsTable.systemNumber,
+          advertNumber: samrukContractsTable.advertNumber,
+          descriptionRu: samrukContractsTable.descriptionRu,
+          contractSum: samrukContractsTable.contractSum,
+          contractCardStatus: samrukContractsTable.contractCardStatus,
           similarity,
         })
-        .from(samrukContracts)
+        .from(samrukContractsTable)
         .where(sql`${similarity} >= ${SIMILARITY_THRESHOLD}`)
         .orderBy(desc(similarity))
         .limit(input.limit);
@@ -208,6 +238,7 @@ export const analyticsRouter = router({
     .input(
       z.object({
         code: z.string(),
+        source: z.enum(["goszakup", "samruk"]).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -218,25 +249,8 @@ export const analyticsRouter = router({
       // Remove any whitespace from the input
       const cleanCode = input.code.replace(/\s+/g, "");
 
-      // If the input is just numbers (6 or more digits), use LIKE query
-      if (/^\d{6,}$/.test(cleanCode)) {
-        const exactKtruCode = await db
-          .select({
-            id: ktruCodes.id,
-            code: ktruCodes.code,
-            name: ktruCodes.nameRu,
-            description: ktruCodes.descriptionRu,
-            source: ktruCodes.source,
-          })
-          .from(ktruCodes)
-          .where(sql`${ktruCodes.code} LIKE ${`%${cleanCode}%`}`)
-          .limit(10);
-
-        return exactKtruCode;
-      }
-
-      // For formatted codes, try exact match first
-      const exactKtruCode = await db
+      // Try to find exact match first
+      let query = db
         .select({
           id: ktruCodes.id,
           code: ktruCodes.code,
@@ -245,12 +259,18 @@ export const analyticsRouter = router({
           source: ktruCodes.source,
         })
         .from(ktruCodes)
-        .where(eq(ktruCodes.code, cleanCode))
-        .limit(1);
+        .where(eq(ktruCodes.code, cleanCode));
+
+      // Add source filter if specified
+      if (input.source) {
+        query = query.where(eq(ktruCodes.source, input.source));
+      }
+
+      const exactKtruCode = await query.limit(1);
 
       // If no exact match found, try partial match
       if (exactKtruCode.length === 0) {
-        const partialMatches = await db
+        let partialQuery = db
           .select({
             id: ktruCodes.id,
             code: ktruCodes.code,
@@ -259,9 +279,14 @@ export const analyticsRouter = router({
             source: ktruCodes.source,
           })
           .from(ktruCodes)
-          .where(sql`${ktruCodes.code} LIKE ${`%${cleanCode}%`}`)
-          .limit(10);
+          .where(sql`${ktruCodes.code} LIKE ${`%${cleanCode}%`}`);
 
+        // Add source filter if specified
+        if (input.source) {
+          partialQuery = partialQuery.where(eq(ktruCodes.source, input.source));
+        }
+
+        const partialMatches = await partialQuery.limit(10);
         return partialMatches;
       }
 
@@ -286,52 +311,52 @@ export const analyticsRouter = router({
       // Try to find by system number first
       const exactSystemNumberMatch = await db
         .select({
-          id: samrukContracts.id,
-          systemNumber: samrukContracts.systemNumber,
-          advertNumber: samrukContracts.advertNumber,
-          descriptionRu: samrukContracts.descriptionRu,
-          contractSum: samrukContracts.contractSum,
-          contractCardStatus: samrukContracts.contractCardStatus,
+          id: samrukContractsTable.id,
+          systemNumber: samrukContractsTable.systemNumber,
+          advertNumber: samrukContractsTable.advertNumber,
+          descriptionRu: samrukContractsTable.descriptionRu,
+          contractSum: samrukContractsTable.contractSum,
+          contractCardStatus: samrukContractsTable.contractCardStatus,
         })
-        .from(samrukContracts)
-        .where(eq(samrukContracts.systemNumber, cleanNumber))
+        .from(samrukContractsTable)
+        .where(eq(samrukContractsTable.systemNumber, cleanNumber))
         .limit(1);
 
       if (exactSystemNumberMatch.length > 0) {
         return exactSystemNumberMatch;
       }
 
-      // Then try by advert number
+      // If not found by system number, try advert number
       const exactAdvertNumberMatch = await db
         .select({
-          id: samrukContracts.id,
-          systemNumber: samrukContracts.systemNumber,
-          advertNumber: samrukContracts.advertNumber,
-          descriptionRu: samrukContracts.descriptionRu,
-          contractSum: samrukContracts.contractSum,
-          contractCardStatus: samrukContracts.contractCardStatus,
+          id: samrukContractsTable.id,
+          systemNumber: samrukContractsTable.systemNumber,
+          advertNumber: samrukContractsTable.advertNumber,
+          descriptionRu: samrukContractsTable.descriptionRu,
+          contractSum: samrukContractsTable.contractSum,
+          contractCardStatus: samrukContractsTable.contractCardStatus,
         })
-        .from(samrukContracts)
-        .where(eq(samrukContracts.advertNumber, cleanNumber))
+        .from(samrukContractsTable)
+        .where(eq(samrukContractsTable.advertNumber, cleanNumber))
         .limit(1);
 
       if (exactAdvertNumberMatch.length > 0) {
         return exactAdvertNumberMatch;
       }
 
-      // If no exact match found, try partial match on both fields
+      // If still not found, try partial match
       const partialMatches = await db
         .select({
-          id: samrukContracts.id,
-          systemNumber: samrukContracts.systemNumber,
-          advertNumber: samrukContracts.advertNumber,
-          descriptionRu: samrukContracts.descriptionRu,
-          contractSum: samrukContracts.contractSum,
-          contractCardStatus: samrukContracts.contractCardStatus,
+          id: samrukContractsTable.id,
+          systemNumber: samrukContractsTable.systemNumber,
+          advertNumber: samrukContractsTable.advertNumber,
+          descriptionRu: samrukContractsTable.descriptionRu,
+          contractSum: samrukContractsTable.contractSum,
+          contractCardStatus: samrukContractsTable.contractCardStatus,
         })
-        .from(samrukContracts)
+        .from(samrukContractsTable)
         .where(
-          sql`${samrukContracts.systemNumber} LIKE ${`%${cleanNumber}%`} OR ${samrukContracts.advertNumber} LIKE ${`%${cleanNumber}%`}`,
+          sql`${samrukContractsTable.systemNumber} LIKE ${`%${cleanNumber}%`} OR ${samrukContractsTable.advertNumber} LIKE ${`%${cleanNumber}%`}`,
         )
         .limit(10);
 
@@ -362,12 +387,12 @@ export const analyticsRouter = router({
     .query(async ({ input }) => {
       const contract = await db
         .select()
-        .from(samrukContracts)
-        .where(eq(samrukContracts.id, input.contractId))
+        .from(samrukContractsTable)
+        .where(eq(samrukContractsTable.id, input.contractId))
         .limit(1);
 
       if (contract.length === 0) {
-        throw new Error("Samruk contract not found");
+        throw new Error("Contract not found");
       }
 
       return contract[0];
@@ -403,17 +428,18 @@ export const analyticsRouter = router({
   getTopSamrukContractsBySum: publicProcedure.query(async () => {
     const results = await db
       .select({
-        id: samrukContracts.id,
-        systemNumber: samrukContracts.systemNumber,
-        advertNumber: samrukContracts.advertNumber,
-        descriptionRu: samrukContracts.descriptionRu,
-        contractSum: samrukContracts.contractSum,
-        contractCardStatus: samrukContracts.contractCardStatus,
-        localContentProjectedShare: samrukContracts.localContentProjectedShare,
+        id: samrukContractsTable.id,
+        systemNumber: samrukContractsTable.systemNumber,
+        advertNumber: samrukContractsTable.advertNumber,
+        descriptionRu: samrukContractsTable.descriptionRu,
+        contractSum: samrukContractsTable.contractSum,
+        contractCardStatus: samrukContractsTable.contractCardStatus,
+        localContentProjectedShare:
+          samrukContractsTable.localContentProjectedShare,
       })
-      .from(samrukContracts)
-      .where(lt(samrukContracts.localContentProjectedShare, 50))
-      .orderBy(desc(sql`cast(${samrukContracts.contractSum} as float)`))
+      .from(samrukContractsTable)
+      .where(lt(samrukContractsTable.localContentProjectedShare, 50))
+      .orderBy(desc(sql`cast(${samrukContractsTable.contractSum} as float)`))
       .limit(500);
 
     return results;
@@ -435,7 +461,7 @@ export const analyticsRouter = router({
       }
 
       // Get all contracts for this KTRU code
-      const contracts = await db
+      const goszakupContractsResult = await db
         .select({
           contractSum: sql<number>`COALESCE(NULLIF(${goszakupContracts.contractSum}, ''), '0')::float`,
           localShare: goszakupContracts.localContentProjectedShare,
@@ -450,6 +476,17 @@ export const analyticsRouter = router({
         )
         .orderBy(goszakupContracts.createdAt);
 
+      const samrukContracts = await db
+        .select({
+          contractSum: sql<number>`COALESCE(NULLIF(${samrukContractsTable.contractSum}, ''), '0')::float`,
+          localShare: samrukContractsTable.localContentProjectedShare,
+          contractDate: samrukContractsTable.createdAt,
+        })
+        .from(samrukContractsTable)
+        .where(eq(samrukContractsTable.truHistory.code, ktruCode.id))
+        .orderBy(samrukContractsTable.createdAt);
+
+      const contracts = [...goszakupContractsResult, ...samrukContracts];
       // Calculate total stats
       const totalStats = {
         contractCount: contracts.length,
@@ -469,7 +506,9 @@ export const analyticsRouter = router({
           const month = new Date(contract.contractDate)
             .toISOString()
             .slice(0, 7);
-          const existing = acc.find((m) => m.month === month);
+          const existing = acc.find(
+            (m: { month: string }) => m.month === month,
+          );
 
           if (existing) {
             existing.contractCount += 1;
@@ -503,7 +542,7 @@ export const analyticsRouter = router({
           if (!contract.contractDate) return acc;
 
           const year = new Date(contract.contractDate).getFullYear().toString();
-          const existing = acc.find((y) => y.year === year);
+          const existing = acc.find((y: { year: string }) => y.year === year);
 
           if (existing) {
             existing.contractCount += 1;
@@ -536,10 +575,14 @@ export const analyticsRouter = router({
         name: ktruCode.nameRu,
         description: ktruCode.descriptionRu,
         totalStats,
-        monthlyStats: monthlyStats.sort((a, b) =>
-          a.month.localeCompare(b.month),
+        monthlyStats: monthlyStats.sort(
+          (a: { month: string }, b: { month: string }) =>
+            a.month.localeCompare(b.month),
         ),
-        yearlyStats: yearlyStats.sort((a, b) => a.year.localeCompare(b.year)),
+        yearlyStats: yearlyStats.sort(
+          (a: { year: string }, b: { year: string }) =>
+            a.year.localeCompare(b.year),
+        ),
       };
     }),
 
@@ -547,30 +590,32 @@ export const analyticsRouter = router({
   getSamrukContractAnalytics: publicProcedure
     .input(
       z.object({
+        query: z.string(),
         contractIds: z.array(z.string()),
       }),
     )
     .mutation(async ({ input }) => {
-      if (input.contractIds.length === 0) {
+      if (!input.query || input.contractIds.length === 0) {
         return null;
       }
 
-      // Get contract details first
+      // Get contract details
       const contractDetails = await db
         .select()
-        .from(samrukContracts)
+        .from(samrukContractsTable)
         .where(
-          sql`${samrukContracts.id} = ANY(ARRAY[${sql.join(
+          sql`${samrukContractsTable.id} = ANY(ARRAY[${sql.join(
             input.contractIds.map((id) => sql`${id}`),
             sql`, `,
           )}])`,
         );
 
+      // Calculate total stats
       // Calculate aggregated stats
       const totalStats = {
         contractCount: contractDetails.length,
         totalSum: contractDetails.reduce(
-          (sum, c) => sum + (parseFloat(c.contractSum) || 0),
+          (sum, c) => sum + (Number.parseFloat(c.contractSum) || 0),
           0,
         ),
         averageLocalShare:
@@ -590,8 +635,10 @@ export const analyticsRouter = router({
           const month = new Date(contract.contractDate)
             .toISOString()
             .slice(0, 7);
-          const existing = acc.find((m) => m.month === month);
-          const contractSum = parseFloat(contract.contractSum) || 0;
+          const existing = acc.find(
+            (m: { month: string }) => m.month === month,
+          );
+          const contractSum = Number.parseFloat(contract.contractSum) || 0;
 
           if (existing) {
             existing.contractCount += 1;
@@ -625,8 +672,8 @@ export const analyticsRouter = router({
           if (!contract.contractDate) return acc;
 
           const year = new Date(contract.contractDate).getFullYear().toString();
-          const existing = acc.find((y) => y.year === year);
-          const contractSum = parseFloat(contract.contractSum) || 0;
+          const existing = acc.find((y: { year: string }) => y.year === year);
+          const contractSum = Number.parseFloat(contract.contractSum) || 0;
 
           if (existing) {
             existing.contractCount += 1;
@@ -663,10 +710,14 @@ export const analyticsRouter = router({
           status: c.contractCardStatus,
         })),
         totalStats,
-        monthlyStats: monthlyStats.sort((a, b) =>
-          a.month.localeCompare(b.month),
+        monthlyStats: monthlyStats.sort(
+          (a: { month: string }, b: { month: string }) =>
+            a.month.localeCompare(b.month),
         ),
-        yearlyStats: yearlyStats.sort((a, b) => a.year.localeCompare(b.year)),
+        yearlyStats: yearlyStats.sort(
+          (a: { year: string }, b: { year: string }) =>
+            a.year.localeCompare(b.year),
+        ),
       };
     }),
 
@@ -682,6 +733,7 @@ export const analyticsRouter = router({
         return null;
       }
 
+      console.log(input);
       // Get KTRU details first
       const ktruDetails = await db
         .select({
@@ -698,9 +750,33 @@ export const analyticsRouter = router({
           )}])`,
         );
 
-      // Get contracts for selected KTRU codes
-      const contracts = await db
+      console.log(ktruDetails);
+      console.log("fetching samruk contracts");
+      const samrukContractsRes = await db
         .select({
+          contractId: samrukContracts.id,
+          contractSum: sql<number>`COALESCE(NULLIF(${samrukContracts.contractSum}, ''), '0')::float`,
+          localShare: samrukContracts.localContentProjectedShare,
+          contractDate: samrukContracts.contractDate,
+          ktruCodeId: samrukContracts.ktruCodeId,
+        })
+        .from(samrukContracts)
+        .where(
+          and(
+            sql`${samrukContracts.ktruCodeId} = ANY(ARRAY[${sql.join(
+              input.ktruIds.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )}])`,
+            sql`${samrukContracts.createdAt} IS NOT NULL`,
+          ),
+        )
+        .orderBy(samrukContracts.createdAt);
+      console.log(samrukContractsRes);
+
+      // Get contracts for selected KTRU codes
+      const goszakupContractsResult = await db
+        .select({
+          contractId: goszakupContracts.id,
           contractSum: sql<number>`COALESCE(NULLIF(${goszakupContracts.contractSum}, ''), '0')::float`,
           localShare: goszakupContracts.localContentProjectedShare,
           contractDate: goszakupContracts.createdAt,
@@ -717,6 +793,9 @@ export const analyticsRouter = router({
           ),
         )
         .orderBy(goszakupContracts.createdAt);
+
+      const contracts = [...goszakupContractsResult, ...samrukContractsRes];
+      console.log(contracts);
 
       // Calculate per-KTRU stats
       const ktruStats = ktruDetails.map((ktru) => {
@@ -756,7 +835,9 @@ export const analyticsRouter = router({
           const month = new Date(contract.contractDate)
             .toISOString()
             .slice(0, 7);
-          const existing = acc.find((m) => m.month === month);
+          const existing = acc.find(
+            (m: { month: string }) => m.month === month,
+          );
 
           if (existing) {
             existing.contractCount += 1;
@@ -790,7 +871,7 @@ export const analyticsRouter = router({
           if (!contract.contractDate) return acc;
 
           const year = new Date(contract.contractDate).getFullYear().toString();
-          const existing = acc.find((y) => y.year === year);
+          const existing = acc.find((y: { year: string }) => y.year === year);
 
           if (existing) {
             existing.contractCount += 1;
@@ -821,11 +902,195 @@ export const analyticsRouter = router({
       return {
         similarKtruCodes: input.ktruIds,
         totalStats,
-        monthlyStats: monthlyStats.sort((a, b) =>
-          a.month.localeCompare(b.month),
+        monthlyStats: monthlyStats.sort(
+          (a: { month: string }, b: { month: string }) =>
+            a.month.localeCompare(b.month),
         ),
-        yearlyStats: yearlyStats.sort((a, b) => a.year.localeCompare(b.year)),
+        yearlyStats: yearlyStats.sort(
+          (a: { year: string }, b: { year: string }) =>
+            a.year.localeCompare(b.year),
+        ),
         ktruStats,
+      };
+    }),
+
+  getKtruAnalytics: publicProcedure
+    .input(
+      z.object({
+        query: z.string(),
+        ktruIds: z.array(z.string()),
+        source: z.enum(["goszakup", "samruk", "all"]).default("all"),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (!input.query || input.ktruIds.length === 0) {
+        return null;
+      }
+
+      // Get KTRU details first
+      const ktruDetails = await db
+        .select({
+          id: ktruCodes.id,
+          code: ktruCodes.code,
+          name: ktruCodes.nameRu,
+          description: ktruCodes.descriptionRu,
+          source: ktruCodes.source,
+        })
+        .from(ktruCodes)
+        .where(
+          sql`${ktruCodes.id} = ANY(ARRAY[${sql.join(
+            input.ktruIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )}])`,
+        );
+
+      // Initialize contracts array
+      let contracts: Array<{
+        contractSum: number;
+        localShare: number | null;
+        contractDate: Date | null;
+        ktruCodeId?: string;
+      }> = [];
+
+      // Get Samruk contracts if source is "samruk" or "all"
+      if (input.source === "samruk" || input.source === "all") {
+        const samrukContractsResult = await db
+          .select({
+            contractSum: sql<number>`COALESCE(NULLIF(${samrukContractsTable.contractSum}, ''), '0')::float`,
+            localShare: samrukContractsTable.localContentProjectedShare,
+            contractDate: samrukContractsTable.createdAt,
+            ktruCodeId: samrukContractsTable.truHistory.code,
+          })
+          .from(samrukContractsTable)
+          .where(eq(samrukContractsTable.truHistory.code, ktruDetails[0].id));
+
+        contracts = [...contracts, ...samrukContractsResult];
+      }
+
+      // Get Goszakup contracts if source is "goszakup" or "all"
+      if (input.source === "goszakup" || input.source === "all") {
+        const goszakupContractsResult = await db
+          .select({
+            contractSum: sql<number>`COALESCE(NULLIF(${goszakupContracts.contractSum}, ''), '0')::float`,
+            localShare: goszakupContracts.localContentProjectedShare,
+            contractDate: goszakupContracts.createdAt,
+            ktruCodeId: goszakupContracts.ktruCodeId,
+          })
+          .from(goszakupContracts)
+          .where(
+            and(
+              sql`${goszakupContracts.ktruCodeId} = ANY(ARRAY[${sql.join(
+                input.ktruIds.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )}])`,
+              sql`${goszakupContracts.createdAt} IS NOT NULL`,
+            ),
+          )
+          .orderBy(goszakupContracts.createdAt);
+
+        contracts = [...contracts, ...goszakupContractsResult];
+      }
+
+      // Calculate total stats
+      const totalStats = {
+        contractCount: contracts.length,
+        totalSum: contracts.reduce((sum, c) => sum + (c.contractSum || 0), 0),
+        averageLocalShare:
+          contracts.length > 0
+            ? contracts.reduce((sum, c) => sum + (c.localShare || 0), 0) /
+              contracts.length
+            : 0,
+      };
+
+      // Group by month
+      const monthlyStats = contracts.reduce(
+        (acc, contract) => {
+          if (!contract.contractDate) return acc;
+
+          const month = new Date(contract.contractDate)
+            .toISOString()
+            .slice(0, 7);
+          const existing = acc.find(
+            (m: { month: string }) => m.month === month,
+          );
+
+          if (existing) {
+            existing.contractCount += 1;
+            existing.totalSum += contract.contractSum || 0;
+            existing.averageLocalShare =
+              (existing.averageLocalShare * (existing.contractCount - 1) +
+                (contract.localShare || 0)) /
+              existing.contractCount;
+          } else {
+            acc.push({
+              month,
+              contractCount: 1,
+              totalSum: contract.contractSum || 0,
+              averageLocalShare: contract.localShare || 0,
+            });
+          }
+
+          return acc;
+        },
+        [] as Array<{
+          month: string;
+          contractCount: number;
+          totalSum: number;
+          averageLocalShare: number;
+        }>,
+      );
+
+      // Group by year
+      const yearlyStats = contracts.reduce(
+        (acc, contract) => {
+          if (!contract.contractDate) return acc;
+
+          const year = new Date(contract.contractDate).getFullYear().toString();
+          const existing = acc.find((y: { year: string }) => y.year === year);
+
+          if (existing) {
+            existing.contractCount += 1;
+            existing.totalSum += contract.contractSum || 0;
+            existing.averageLocalShare =
+              (existing.averageLocalShare * (existing.contractCount - 1) +
+                (contract.localShare || 0)) /
+              existing.contractCount;
+          } else {
+            acc.push({
+              year,
+              contractCount: 1,
+              totalSum: contract.contractSum || 0,
+              averageLocalShare: contract.localShare || 0,
+            });
+          }
+
+          return acc;
+        },
+        [] as Array<{
+          year: string;
+          contractCount: number;
+          totalSum: number;
+          averageLocalShare: number;
+        }>,
+      );
+
+      return {
+        selectedContracts: contracts.map((c) => ({
+          id: c.id,
+          number: c.systemNumber || c.advertNumber,
+          description: c.descriptionRu,
+          sum: c.contractSum,
+          status: c.contractCardStatus,
+        })),
+        totalStats,
+        monthlyStats: monthlyStats.sort(
+          (a: { month: string }, b: { month: string }) =>
+            a.month.localeCompare(b.month),
+        ),
+        yearlyStats: yearlyStats.sort(
+          (a: { year: string }, b: { year: string }) =>
+            a.year.localeCompare(b.year),
+        ),
       };
     }),
 });
