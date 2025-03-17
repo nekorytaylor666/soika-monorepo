@@ -9,6 +9,7 @@ import {
   lt,
   and,
   inArray,
+  count,
 } from "drizzle-orm";
 import { embeddings } from "../../lib/ai";
 import { db } from "db/connection";
@@ -18,11 +19,18 @@ import {
   goszakupContracts,
   samrukContracts as samrukContractsTable,
   samrukContracts,
+  ktruGroups,
+  ktruSubgroups,
 } from "db/schema";
 import { router, publicProcedure } from "..";
 import { generateText } from "ai";
 import { deepseek } from "@ai-sdk/deepseek";
 import { openai } from "@ai-sdk/openai";
+import { TRPCError } from "@trpc/server";
+import fs from "fs/promises";
+import path from "path";
+import { parse } from "csv-parse";
+import xlsx from "node-xlsx";
 
 interface KtruSearchResult {
   id: string;
@@ -41,6 +49,25 @@ interface SamrukContractSearchResult {
   contractSum: string | null;
   contractCardStatus: string | null;
   similarity: number;
+}
+
+interface GroupAnalytics {
+  id: string;
+  code: string;
+  nameRu: string;
+  totalSum: number;
+  contractCount: number;
+  averageLocalShare: number;
+  subgroups: SubgroupAnalytics[];
+}
+
+interface SubgroupAnalytics {
+  id: string;
+  code: string;
+  nameRu: string;
+  totalSum: number;
+  contractCount: number;
+  averageLocalShare: number;
 }
 
 const SIMILARITY_THRESHOLD = 0.4;
@@ -448,12 +475,12 @@ export const analyticsRouter = router({
   getKtruDetails: publicProcedure
     .input(
       z.object({
-        ktruCode: z.string(),
+        id: z.string(),
       }),
     )
     .query(async ({ input }) => {
       const ktruCode = await db.query.ktruCodes.findFirst({
-        where: eq(ktruCodes.id, input.ktruCode),
+        where: eq(ktruCodes.id, input.id),
       });
 
       if (!ktruCode) {
@@ -585,6 +612,137 @@ export const analyticsRouter = router({
         ),
       };
     }),
+  getTopKtruGroupsBySum: publicProcedure.query(async () => {
+    // Read CSV files
+    const groupsData = await fs.readFile(
+      path.join(__dirname, "../../data/groups_top.csv"),
+      "utf-8",
+    );
+    const subgroupsData = await fs.readFile(
+      path.join(__dirname, "../../data/subgroup_top.csv"),
+      "utf-8",
+    );
+
+    // Read registry Excel file
+    const registryWorkbook = xlsx.parse(
+      path.join(__dirname, "../../data/registry.xls"),
+    )[0];
+    const registryData = registryWorkbook.data;
+
+    // Create a map of code to name from registry
+    const codeToNameMap = new Map<string, string>();
+    for (let i = 1; i < registryData.length; i++) {
+      const row = registryData[i];
+      if (row[0] && row[2]) {
+        const code = row[0].toString();
+        codeToNameMap.set(code, row[2].toString());
+        // If code ends with 000, also store it without the 000
+        if (code.endsWith("000")) {
+          const baseCode = code.slice(0, -3);
+          codeToNameMap.set(baseCode, row[2].toString());
+        }
+      }
+    }
+
+    // Parse CSVs with proper typing
+    interface GroupData {
+      group_code: string;
+      group_name: string;
+      contract_count: string;
+      total_contract_sum: string;
+    }
+
+    interface SubgroupData {
+      subgroup_code: string;
+      group_code: string;
+      contract_count: string;
+      total_contract_sum: string;
+    }
+
+    const groups = await new Promise<GroupData[]>((resolve, reject) => {
+      parse(
+        groupsData,
+        {
+          columns: true,
+          skip_empty_lines: true,
+          cast: true,
+          delimiter: ",",
+        },
+        (err, data) => {
+          if (err) reject(err);
+          resolve(data);
+        },
+      );
+    });
+
+    const subgroups = await new Promise<SubgroupData[]>((resolve, reject) => {
+      parse(
+        subgroupsData,
+        {
+          columns: true,
+          skip_empty_lines: true,
+          cast: true,
+          delimiter: ",",
+        },
+        (err, data) => {
+          if (err) reject(err);
+          resolve(data);
+        },
+      );
+    });
+
+    // Create hierarchical structure
+    const hierarchicalData: GroupAnalytics[] = groups.map((group) => {
+      const groupCode = group.group_code.toString();
+
+      // Find subgroups by matching the group code
+      const relatedSubgroups = subgroups
+        .filter((subgroup) => {
+          const subgroupCode = subgroup.subgroup_code.toString();
+          return subgroupCode.startsWith(groupCode);
+        })
+        .map((subgroup) => {
+          const subgroupCode = subgroup.subgroup_code.toString();
+          // If code ends with 000, use the base code for lookup
+          const lookupCode = subgroupCode.endsWith("000")
+            ? subgroupCode.slice(0, -3)
+            : subgroupCode;
+
+          return {
+            id: subgroupCode,
+            code: subgroupCode,
+            nameRu:
+              codeToNameMap.get(lookupCode) ||
+              codeToNameMap.get(subgroupCode) ||
+              subgroupCode,
+            totalSum: Number(subgroup.total_contract_sum),
+            contractCount: Number(subgroup.contract_count),
+            averageLocalShare: 0, // Not available in CSV, set default
+          };
+        });
+
+      // For group code, also check without 000 if it ends with it
+      const lookupGroupCode = groupCode.endsWith("000")
+        ? groupCode.slice(0, -3)
+        : groupCode;
+
+      return {
+        id: groupCode,
+        code: groupCode,
+        nameRu:
+          codeToNameMap.get(lookupGroupCode) ||
+          codeToNameMap.get(groupCode) ||
+          group.group_name,
+        totalSum: Number(group.total_contract_sum),
+        contractCount: Number(group.contract_count),
+        averageLocalShare: 0, // Not available in CSV, set default
+        subgroups: relatedSubgroups,
+      };
+    });
+
+    // Sort by total sum descending
+    return hierarchicalData.sort((a, b) => b.totalSum - a.totalSum);
+  }),
 
   // New procedure for getting Samruk contract analytics
   getSamrukContractAnalytics: publicProcedure
@@ -726,6 +884,7 @@ export const analyticsRouter = router({
       z.object({
         query: z.string(),
         ktruIds: z.array(z.string()),
+        source: z.enum(["goszakup", "samruk", "all"]).default("all"),
       }),
     )
     .mutation(async ({ input }) => {
@@ -752,6 +911,7 @@ export const analyticsRouter = router({
 
       console.log(ktruDetails);
       console.log("fetching samruk contracts");
+
       const samrukContractsRes = await db
         .select({
           contractId: samrukContracts.id,
@@ -771,7 +931,6 @@ export const analyticsRouter = router({
           ),
         )
         .orderBy(samrukContracts.createdAt);
-      console.log(samrukContractsRes);
 
       // Get contracts for selected KTRU codes
       const goszakupContractsResult = await db
@@ -794,7 +953,14 @@ export const analyticsRouter = router({
         )
         .orderBy(goszakupContracts.createdAt);
 
-      const contracts = [...goszakupContractsResult, ...samrukContractsRes];
+      let contracts = [];
+      if (input.source === "samruk") {
+        contracts = [...samrukContractsRes];
+      } else if (input.source === "goszakup") {
+        contracts = [...goszakupContractsResult];
+      } else {
+        contracts = [...goszakupContractsResult, ...samrukContractsRes];
+      }
       console.log(contracts);
 
       // Calculate per-KTRU stats

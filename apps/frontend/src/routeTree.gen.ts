@@ -24,6 +24,7 @@ import { Route as DashboardSchedulesIndexImport } from './routes/dashboard/sched
 import { Route as DashboardLotsIndexImport } from './routes/dashboard/lots/index'
 import { Route as DashboardBoardsIndexImport } from './routes/dashboard/boards/index'
 import { Route as DashboardAnalyticsIndexImport } from './routes/dashboard/analytics/index'
+import { Route as AnalyticsKtruGroupsIndexImport } from './routes/analytics/ktru-groups/index'
 import { Route as AnalyticsChatIndexImport } from './routes/analytics/chat/index'
 import { Route as AnalyticsAgentIndexImport } from './routes/analytics/agent/index'
 import { Route as DashboardTasksTaskIdImport } from './routes/dashboard/tasks/$taskId'
@@ -136,6 +137,12 @@ const DashboardAnalyticsIndexRoute = DashboardAnalyticsIndexImport.update({
   id: '/analytics/',
   path: '/analytics/',
   getParentRoute: () => DashboardRouteRoute,
+} as any)
+
+const AnalyticsKtruGroupsIndexRoute = AnalyticsKtruGroupsIndexImport.update({
+  id: '/analytics/ktru-groups/',
+  path: '/analytics/ktru-groups/',
+  getParentRoute: () => rootRoute,
 } as any)
 
 const AnalyticsChatIndexRoute = AnalyticsChatIndexImport.update({
@@ -345,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsChatIndexImport
       parentRoute: typeof rootRoute
     }
+    '/analytics/ktru-groups/': {
+      id: '/analytics/ktru-groups/'
+      path: '/analytics/ktru-groups'
+      fullPath: '/analytics/ktru-groups'
+      preLoaderRoute: typeof AnalyticsKtruGroupsIndexImport
+      parentRoute: typeof rootRoute
+    }
     '/dashboard/analytics/': {
       id: '/dashboard/analytics/'
       path: '/analytics'
@@ -489,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
   '/analytics/agent': typeof AnalyticsAgentIndexRoute
   '/analytics/chat': typeof AnalyticsChatIndexRoute
+  '/analytics/ktru-groups': typeof AnalyticsKtruGroupsIndexRoute
   '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
@@ -518,6 +533,7 @@ export interface FileRoutesByTo {
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
   '/analytics/agent': typeof AnalyticsAgentIndexRoute
   '/analytics/chat': typeof AnalyticsChatIndexRoute
+  '/analytics/ktru-groups': typeof AnalyticsKtruGroupsIndexRoute
   '/dashboard/analytics': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards': typeof DashboardBoardsIndexRoute
   '/dashboard/lots': typeof DashboardLotsIndexRoute
@@ -549,6 +565,7 @@ export interface FileRoutesById {
   '/dashboard/tasks/$taskId': typeof DashboardTasksTaskIdRoute
   '/analytics/agent/': typeof AnalyticsAgentIndexRoute
   '/analytics/chat/': typeof AnalyticsChatIndexRoute
+  '/analytics/ktru-groups/': typeof AnalyticsKtruGroupsIndexRoute
   '/dashboard/analytics/': typeof DashboardAnalyticsIndexRoute
   '/dashboard/boards/': typeof DashboardBoardsIndexRoute
   '/dashboard/lots/': typeof DashboardLotsIndexRoute
@@ -581,6 +598,7 @@ export interface FileRouteTypes {
     | '/dashboard/tasks/$taskId'
     | '/analytics/agent'
     | '/analytics/chat'
+    | '/analytics/ktru-groups'
     | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
@@ -609,6 +627,7 @@ export interface FileRouteTypes {
     | '/dashboard/tasks/$taskId'
     | '/analytics/agent'
     | '/analytics/chat'
+    | '/analytics/ktru-groups'
     | '/dashboard/analytics'
     | '/dashboard/boards'
     | '/dashboard/lots'
@@ -638,6 +657,7 @@ export interface FileRouteTypes {
     | '/dashboard/tasks/$taskId'
     | '/analytics/agent/'
     | '/analytics/chat/'
+    | '/analytics/ktru-groups/'
     | '/dashboard/analytics/'
     | '/dashboard/boards/'
     | '/dashboard/lots/'
@@ -662,6 +682,7 @@ export interface RootRouteChildren {
   KanbanLazyRoute: typeof KanbanLazyRoute
   AnalyticsAgentIndexRoute: typeof AnalyticsAgentIndexRoute
   AnalyticsChatIndexRoute: typeof AnalyticsChatIndexRoute
+  AnalyticsKtruGroupsIndexRoute: typeof AnalyticsKtruGroupsIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -676,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   KanbanLazyRoute: KanbanLazyRoute,
   AnalyticsAgentIndexRoute: AnalyticsAgentIndexRoute,
   AnalyticsChatIndexRoute: AnalyticsChatIndexRoute,
+  AnalyticsKtruGroupsIndexRoute: AnalyticsKtruGroupsIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -698,7 +720,8 @@ export const routeTree = rootRoute
         "/about",
         "/kanban",
         "/analytics/agent/",
-        "/analytics/chat/"
+        "/analytics/chat/",
+        "/analytics/ktru-groups/"
       ]
     },
     "/": {
@@ -781,6 +804,9 @@ export const routeTree = rootRoute
     },
     "/analytics/chat/": {
       "filePath": "analytics/chat/index.tsx"
+    },
+    "/analytics/ktru-groups/": {
+      "filePath": "analytics/ktru-groups/index.tsx"
     },
     "/dashboard/analytics/": {
       "filePath": "dashboard/analytics/index.tsx",

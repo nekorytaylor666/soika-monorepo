@@ -592,9 +592,77 @@ export const ktruCodes = pgTable("ktru_codes", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   embedding: vector("embedding", { dimensions: 1536 }),
+  // Add references to groups and subgroups
+  groupId: uuid("group_id").references(() => ktruGroups.id),
+  subgroupId: uuid("subgroup_id").references(() => ktruSubgroups.id),
 });
 
 export type KtruCode = typeof ktruCodes.$inferSelect;
+
+// Add table for KTRU groups
+export const ktruGroups = pgTable("ktru_groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: text("code").notNull().unique(),
+  nameRu: text("name_ru"),
+  descriptionRu: text("description_ru"),
+  isValid: boolean("is_valid").default(true),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  // Add organization reference for filtered analytics
+  organizationId: uuid("organization_id").references(() => organizations.id),
+});
+
+export type KtruGroup = typeof ktruGroups.$inferSelect;
+
+// Add table for KTRU subgroups
+export const ktruSubgroups = pgTable("ktru_subgroups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: text("code").notNull().unique(),
+  nameRu: text("name_ru"),
+  descriptionRu: text("description_ru"),
+  isValid: boolean("is_valid").default(true),
+  groupId: uuid("group_id").references(() => ktruGroups.id),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  // Add organization reference for filtered analytics
+  organizationId: uuid("organization_id").references(() => organizations.id),
+});
+
+export type KtruSubgroup = typeof ktruSubgroups.$inferSelect;
+
+// Add table for KTRU group analytics
+export const ktruGroupAnalytics = pgTable("ktru_group_analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  groupId: uuid("group_id").references(() => ktruGroups.id),
+  totalContractSum: doublePrecision("total_contract_sum").notNull().default(0),
+  contractCount: integer("contract_count").notNull().default(0),
+  averageContractSum: doublePrecision("average_contract_sum")
+    .notNull()
+    .default(0),
+  minContractSum: doublePrecision("min_contract_sum"),
+  maxContractSum: doublePrecision("max_contract_sum"),
+  lastUpdated: timestamp("last_updated").default(sql`now()`).notNull(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+});
+
+export type KtruGroupAnalytics = typeof ktruGroupAnalytics.$inferSelect;
+
+// Add table for KTRU subgroup analytics
+export const ktruSubgroupAnalytics = pgTable("ktru_subgroup_analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subgroupId: uuid("subgroup_id").references(() => ktruSubgroups.id),
+  totalContractSum: doublePrecision("total_contract_sum").notNull().default(0),
+  contractCount: integer("contract_count").notNull().default(0),
+  averageContractSum: doublePrecision("average_contract_sum")
+    .notNull()
+    .default(0),
+  minContractSum: doublePrecision("min_contract_sum"),
+  maxContractSum: doublePrecision("max_contract_sum"),
+  lastUpdated: timestamp("last_updated").default(sql`now()`).notNull(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+});
+
+export type KtruSubgroupAnalytics = typeof ktruSubgroupAnalytics.$inferSelect;
 
 // Goszakup contracts table
 export const goszakupContracts = pgTable("goszakup_contracts", {
@@ -705,9 +773,75 @@ export const goszakupContractRelations = relations(
 );
 
 // Add relations for ktruCodes
-export const ktruCodeRelations = relations(ktruCodes, ({ many }) => ({
+export const ktruCodeRelations = relations(ktruCodes, ({ many, one }) => ({
   contracts: many(goszakupContracts),
+  group: one(ktruGroups, {
+    fields: [ktruCodes.groupId],
+    references: [ktruGroups.id],
+  }),
+  subgroup: one(ktruSubgroups, {
+    fields: [ktruCodes.subgroupId],
+    references: [ktruSubgroups.id],
+  }),
 }));
+
+// Add relations for ktruGroups
+export const ktruGroupRelations = relations(ktruGroups, ({ many, one }) => ({
+  codes: many(ktruCodes),
+  subgroups: many(ktruSubgroups),
+  analytics: one(ktruGroupAnalytics),
+  organization: one(organizations, {
+    fields: [ktruGroups.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+// Add relations for ktruSubgroups
+export const ktruSubgroupRelations = relations(
+  ktruSubgroups,
+  ({ many, one }) => ({
+    codes: many(ktruCodes),
+    group: one(ktruGroups, {
+      fields: [ktruSubgroups.groupId],
+      references: [ktruGroups.id],
+    }),
+    analytics: one(ktruSubgroupAnalytics),
+    organization: one(organizations, {
+      fields: [ktruSubgroups.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
+
+// Add relations for ktruGroupAnalytics
+export const ktruGroupAnalyticsRelations = relations(
+  ktruGroupAnalytics,
+  ({ one }) => ({
+    group: one(ktruGroups, {
+      fields: [ktruGroupAnalytics.groupId],
+      references: [ktruGroups.id],
+    }),
+    organization: one(organizations, {
+      fields: [ktruGroupAnalytics.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
+
+// Add relations for ktruSubgroupAnalytics
+export const ktruSubgroupAnalyticsRelations = relations(
+  ktruSubgroupAnalytics,
+  ({ one }) => ({
+    subgroup: one(ktruSubgroups, {
+      fields: [ktruSubgroupAnalytics.subgroupId],
+      references: [ktruSubgroups.id],
+    }),
+    organization: one(organizations, {
+      fields: [ktruSubgroupAnalytics.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
 
 // Add this new table for Samruk contracts
 export const samrukContracts = pgTable("samruk_contracts", {

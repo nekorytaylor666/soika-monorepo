@@ -13,7 +13,7 @@ import { cosineDistance, desc, sql } from "drizzle-orm/sql";
 import { embeddings } from "./lib/ai";
 import { ktruCodes, samrukContracts } from "db/schema";
 import { openai } from "@ai-sdk/openai";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
 export const chatRouter = new Hono();
 
@@ -43,7 +43,12 @@ chatRouter.post("/agent", async (c) => {
       .where(
         and(
           sql`${similarity} >= ${SIMILARITY_THRESHOLD}`,
-          input.source ? eq(ktruCodes.source, input.source) : undefined,
+          input.source !== "all"
+            ? or(
+                eq(ktruCodes.source, input.source),
+                eq(ktruCodes.source, "any"),
+              )
+            : undefined,
         ),
       )
       .orderBy(desc(similarity))

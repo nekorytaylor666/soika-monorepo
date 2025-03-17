@@ -8,5 +8,8 @@
   ],
   "scripts": {
     "import:samruk-tru": "tsx scripts/import_samruk_tru_codes.ts"
+  },
+  "dependencies": {
+    "csv-writer": "^1.6.0"
   }
 }

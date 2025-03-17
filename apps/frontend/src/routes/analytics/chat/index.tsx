@@ -125,7 +125,7 @@ function ChatComponent() {
           },
           body: JSON.stringify({
             query: searchQuery,
-            source: sourceFilter === "all" ? undefined : sourceFilter,
+            source: sourceFilter === "all" ? "all" : sourceFilter,
           }),
         }
       );
@@ -309,32 +309,6 @@ function ChatComponent() {
     }
   };
 
-  const handleGenerateReport = React.useCallback(() => {
-    if (searchMode === "ktru") {
-      if (!searchResults?.selectedKtrus.length) return;
-      const ktruIds = searchResults.selectedKtrus.map((ktru) => ktru.id);
-      reportMutation.mutate({
-        query,
-        ktruIds,
-      });
-    } else {
-      if (!samrukSearchResults?.selectedContracts.length) return;
-      const contractIds = samrukSearchResults.selectedContracts.map(
-        (contract) => contract.id
-      );
-      samrukReportMutation.mutate({
-        contractIds,
-      });
-    }
-  }, [
-    query,
-    searchMode,
-    searchResults,
-    samrukSearchResults,
-    reportMutation,
-    samrukReportMutation,
-  ]);
-
   const isLoading =
     searchMutation.isLoading ||
     exactSearchMutation.isLoading ||
@@ -497,7 +471,9 @@ function ChatComponent() {
                         <TableCell>{ktru.name || "—"}</TableCell>
                         <TableCell>{ktru.description || "—"}</TableCell>
                         <TableCell>
-                          {ktru.source === "samruk" ? "Самрук" : "Госзакуп"}
+                          {ktru.source === "samruk" && "Самрук"}
+                          {ktru.source === "goszakup" && "Госзакуп"}
+                          {ktru.source === "any" && "Любой"}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -505,7 +481,17 @@ function ChatComponent() {
                 </Table>
               </div>
               <div className="mt-4 flex justify-end">
-                <Button onClick={handleGenerateReport}>
+                <Button
+                  onClick={() => {
+                    reportMutation.mutate({
+                      query,
+                      ktruIds:
+                        searchResults?.selectedKtrus.map((ktru) => ktru.id) ||
+                        [],
+                      source: sourceFilter,
+                    });
+                  }}
+                >
                   <FileBarChart className="h-4 w-4 mr-2" />
                   Сгенерировать отчет
                 </Button>
