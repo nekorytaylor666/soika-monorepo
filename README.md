@@ -1,4 +1,4 @@
-# soika-monorepo
+# soika-monorepoz
 
 To install dependencies:
 
